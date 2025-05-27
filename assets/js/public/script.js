@@ -9,13 +9,13 @@ jQuery(document).ready(function($) {
         console.log("Initializing OpenSeadragon and Annotorious...");
 
         const viewerId = AnnotoriousViewerConfig.id;
-        const images = AnnotoriousViewerConfig.images;
-        const currentPostId = AnnotoriousViewerConfig.currentPostId;
+        const images = AnnotoriousViewerConfig.images; // This array already contains 'post_id' (attachment ID)
+        const currentPostId = AnnotoriousViewerConfig.currentPostId; // This is the main post ID, not the attachment ID for current OSD image
         const ajaxUrl = AnnotoriousVars.ajax_url;
 
         console.log("Viewer ID:", viewerId);
         console.log("Images for OSD:", images);
-        console.log("Current Post ID:", currentPostId);
+        console.log("Current Main Post ID:", currentPostId);
         console.log("AJAX URL (from AnnotoriousVars):", ajaxUrl);
 
         // --- CRITICAL CHECK: Verify OSD container exists in DOM ---
@@ -45,48 +45,11 @@ jQuery(document).ready(function($) {
             tileSources: images.map(img => ({
                 type: img.type,
                 url: img.url
-                // Add additional OSD tile source properties if needed (e.g., width, height, tileSize for DZI)
+                // OpenSeadragon doesn't directly need 'post_id' here, but we'll use it from the 'images' array.
             }))
         });
 
         console.log("OpenSeadragon viewer object created:", osdViewer);
-
-        osdViewer.addHandler('open', function() {
-            console.log("OpenSeadragon 'open' event fired: Image(s) loaded into viewer.");
-            
-            // Log the URL of the currently opened image in OSD
-            let currentImageOsdUrl = '';
-            const currentPage = osdViewer.currentPage(); // Get current page index
-            const item = osdViewer.world.getItemAt(currentPage); // Get current item object
-
-            if (item && item.source && item.source.url) { // For multi-page sequence
-                currentImageOsdUrl = item.source.url;
-                console.log(`OSD Viewer Current Image URL (Page ${currentPage}):`, currentImageOsdUrl);
-            } else if (osdViewer.source && osdViewer.source.url) { // Fallback for non-sequence or single image
-                currentImageOsdUrl = osdViewer.source.url;
-                console.log("OSD Viewer Current Image URL (Single Image):", currentImageOsdUrl);
-            } else {
-                console.warn("Could not determine OSD Viewer Current Image URL.");
-            }
-
-            // --- Check Annotorious's perceived current image source (THIS IS THE CODE BEFORE V3 UPGRADE) ---
-            if (anno.getCurrentImageSource) { 
-                const currentAnnoSource = anno.getCurrentImageSource(); 
-                console.log("Annotorious's perceived current image source (anno.getCurrentImageSource()):", currentAnnoSource);
-                
-                // CRITICAL COMPARISON LOG
-                if (currentImageOsdUrl && currentAnnoSource && currentImageOsdUrl !== currentAnnoSource) {
-                    console.error("URL MISMATCH DETECTED between OSD and Annotorious:", { OSD: currentImageOsdUrl, Annotorious: currentAnnoSource });
-                } else if (currentImageOsdUrl && currentAnnoSource) {
-                    console.log("URL MATCH: OSD and Annotorious sources match.");
-                }
-            } else {
-                console.warn("Annotorious.getCurrentImageSource() method not available (check plugin version/installation).");
-            }
-        });
-        osdViewer.addHandler('open-failed', function(event) {
-            console.error("OpenSeadragon 'open-failed' event fired: Failed to load image(s). Event data:", event);
-        });
 
         // --- Check if Annotorious is available globally for v2 init ---
         if (typeof OpenSeadragon.Annotorious === 'undefined') { // V2 check
@@ -100,39 +63,83 @@ jQuery(document).ready(function($) {
         const anno = OpenSeadragon.Annotorious(osdViewer); // V2 init
         console.log("Annotorious initialized on OpenSeadragon (v2).");
 
-
         // --- Function to load annotations via AJAX ---
-        function loadAnnotationsFromBackend() {
-            console.log("Attempting AJAX load of annotations (direct call).");
+        // MODIFIED: This function now accepts the specific image's attachment ID
+        function loadAnnotationsFromBackend(attachmentId) {
+            console.log("Attempting AJAX load of annotations for attachment ID:", attachmentId);
+            
+            // CRITICAL: Clear existing annotations from the viewer BEFORE loading new ones
+            anno.setAnnotations([]); 
+
+            if (!attachmentId || attachmentId <= 0) {
+                console.warn("No valid attachment ID provided for loading annotations. Skipping AJAX call.");
+                return;
+            }
+
             $.ajax({
                 url: ajaxUrl,
                 data: {
                     action: 'anno_get',
-                    post_id: currentPostId 
+                    attachment_id: attachmentId // SEND THE SPECIFIC ATTACHMENT ID
                 },
                 dataType: 'json',
                 success: function(annotations) {
-                    console.log("Loaded annotations:", annotations);
+                    console.log("Loaded annotations for attachment ID", attachmentId, ":", annotations);
                     if (Array.isArray(annotations)) {
                        anno.setAnnotations(annotations);
                     } else {
-                       console.warn("Loaded annotations are not an array:", annotations);
-                       anno.setAnnotations([]); // Clear existing if format is wrong
+                       console.warn("Loaded annotations are not an array for attachment ID", attachmentId, ":", annotations);
+                       // If format is wrong, ensure annotations are cleared
+                       anno.setAnnotations([]); 
                     }
                 },
                 error: function(xhr, status, error) {
-                    console.error("Error loading annotations via AJAX:", status, error, xhr.responseText);
+                    console.error("Error loading annotations via AJAX for attachment ID", attachmentId, ":", status, error, xhr.responseText);
                 }
             });
         }
 
-        // CRITICAL: Call the loading function directly after Annotorious is initialized
-        loadAnnotationsFromBackend();
+        // --- Event handler for initial image load (first image in sequence) ---
+        osdViewer.addHandler('open', function() {
+            console.log("OpenSeadragon 'open' event fired: Image(s) loaded into viewer.");
+            
+            let currentImageAttachmentId = 0;
+            const currentPage = osdViewer.currentPage(); 
 
-        // Keep the 'ready' event handler as it's standard
-        anno.on('ready', function() {
-            console.log("Annotorious 'ready' event fired. (This is a fallback/delayed event.)");
+            // Get the attachment ID for the currently open image from our localized data
+            if (images && images[currentPage]) {
+                currentImageAttachmentId = images[currentPage].post_id;
+                console.log(`Current OSD Image Attachment ID (from localized data) for page ${currentPage}: ${currentImageAttachmentId}`);
+            } else {
+                console.warn(`Could not find pre-loaded attachment ID for page ${currentPage}.`);
+            }
+            
+            // Load annotations for the initially displayed image
+            if (currentImageAttachmentId > 0) {
+                loadAnnotationsFromBackend(currentImageAttachmentId);
+            }
         });
+
+        // --- Event handler for page changes (navigating through the sequence) ---
+        osdViewer.addHandler('page-change', function(event) {
+            console.log("OpenSeadragon 'page-change' event fired. New page index:", event.page);
+            let newImageAttachmentId = 0;
+
+            // Get the attachment ID for the newly displayed image from our localized data
+            if (images && images[event.page]) {
+                newImageAttachmentId = images[event.page].post_id;
+                console.log(`New OSD Image Attachment ID (from localized data) for page ${event.page}: ${newImageAttachmentId}`);
+            } else {
+                console.warn(`Could not find pre-loaded attachment ID for new page ${event.page}.`);
+            }
+
+            // Load annotations for the newly displayed image
+            if (newImageAttachmentId > 0) {
+                loadAnnotationsFromBackend(newImageAttachmentId);
+            }
+        });
+
+
 
         // Save new/updated annotations (v2 event callback signature)
         anno.on('createAnnotation', function(annotation) { // V2 event signature

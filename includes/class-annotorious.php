@@ -15,7 +15,6 @@ class Annotorious {
         add_action( 'save_post', array( $this, 'save_ry_annotorious_images_metabox' ), 10, 2 );
 
         // AJAX actions for annotations
-        // Hooks for anno_get, anno_add, etc. methods.
         add_action( 'wp_ajax_nopriv_anno_get', array( $this, 'anno_get') );
         add_action( 'wp_ajax_anno_get', array( $this, 'anno_get' ) );
         add_action( 'wp_ajax_nopriv_anno_add', array( $this, 'anno_add') );
@@ -31,10 +30,12 @@ class Annotorious {
         $this->filter_called = 0;
     }
 
-    // --- Script & Style Loading Functions ---
+        /*************************************
+        * --- Script & Style Loading Functions ---
+        *************************************/
 
-    function load_scripts()
-    {
+    function load_scripts(){
+
         // Get the current queried object. This is the most robust way to get the post/page object.
         $current_object = get_queried_object();
         
@@ -59,6 +60,7 @@ class Annotorious {
                         $image_sources[] = [
                             'type' => 'image',
                             'url'  => $image_url_array[0],
+                            'post_id' => $id
                         ];
                     }
                 }
@@ -76,15 +78,15 @@ class Annotorious {
         wp_register_style( 'ry-annotorious-css', RY_ANNOTORIOUS_URL . 'assets/css/annotorious/annotorious.min.css');
         wp_enqueue_style( 'ry-annotorious-css' );
 
-        // Enqueue Annotorious Core JS (v2.7.0, compatible with openseadragon-annotorious.min.js)
+        // Enqueue Annotorious Core JS (v2.7.0)
         wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true );
         wp_enqueue_script( 'ry-annotorious-core-js' );
 
-        // OpenSeadragon JS (your v5.0.1)
+        // OpenSeadragon JS (v5.0.1)
         wp_register_script( 'openseadragon-js', RY_ANNOTORIOUS_URL . 'assets/js/openseadragon/openseadragon.min.js', array(), '5.0.1', true ); 
         wp_enqueue_script( 'openseadragon-js' );
 
-        // Annotorious OpenSeadragon Plugin JS (v2.7.17 - corrected filename)
+        // Annotorious OpenSeadragon Plugin JS (v2.7.17)
         wp_register_script( 'ry-annotorious-osd-plugin-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'ry-annotorious-core-js', 'openseadragon-js' ), '2.7.17', true ); // <-- Corrected filename
         wp_enqueue_script( 'ry-annotorious-osd-plugin-js' );
 
@@ -107,9 +109,6 @@ class Annotorious {
 
 
     function load_admin_scripts() {
-        // This log confirms the function is executing
-        // error_log('Annotorious: load_admin_scripts() is executing. Admin JS URL: ' . RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js');
-        
         // Your custom admin JS
         wp_register_script('admin-js', RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js', array('jquery'),'1.12', true); // Removed wp-media dependency for user's specific environment
         wp_enqueue_script('admin-js');
@@ -118,8 +117,10 @@ class Annotorious {
         wp_enqueue_media();
     }
 
+    /*************************************
+    * --- Content Filter ---
+    *************************************/
 
-    // --- Content Filter ---
     function content_filter($content) {
         global $post; // This is a filter, $post should be set.
 
@@ -145,7 +146,9 @@ class Annotorious {
         }
     }
 
-    // --- Metabox Functions ---
+    /*************************************
+    * --- Metabox Functions ---
+    *************************************/
 
     function add_ry_annotorious_images_metabox() {
         add_meta_box(
@@ -265,37 +268,29 @@ class Annotorious {
     * ajax get annotations
     *************************************/
     function anno_get() {
-        $sequence_post_id = isset($_GET['post_id']) ? intval($_GET['post_id']) : 0; 
+        // CHANGED: Expect 'attachment_id' instead of 'post_id'
+        $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0; 
 
-        if (empty($sequence_post_id)) {
-            echo wp_json_encode(array('success' => false, 'message' => 'Missing sequence_post_id.'));
+        if (empty($attachment_id)) {
+            echo wp_json_encode(array('success' => false, 'message' => 'Missing attachment_id.'));
             wp_die();
         }
 
         header('Content-Type: application/json');
 
-        $all_annotations = []; 
+        $annotations_for_current_image = []; // This will now hold annotations for a *single* image
 
-        // 1. Get the image attachment IDs associated with this sequence post
-        $image_ids_json = get_post_meta($sequence_post_id, '_ry_annotorious_image_ids', true);
-        $image_attachment_ids = json_decode($image_ids_json, true);
-
-        if (!empty($image_attachment_ids) && is_array($image_attachment_ids)) {
-            foreach ($image_attachment_ids as $attachment_id) {
-                // 2. For each attachment ID, get its annotations
-                $raw_annotations_for_image = get_post_meta($attachment_id, 'ry_image_annotations', true);
-                
-                if ( is_string($raw_annotations_for_image) && !empty($raw_annotations_for_image) ) {
-                    $decoded_annotations_for_image = json_decode($raw_annotations_for_image, true);
-                    if ( is_array($decoded_annotations_for_image) ) {
-                        // 3. Add these annotations to the master list
-                        $all_annotations = array_merge($all_annotations, $decoded_annotations_for_image);
-                    }
-                }
+        // Retrieve annotations directly from the given attachment ID
+        $raw_annotations_for_image = get_post_meta($attachment_id, 'ry_image_annotations', true);
+        
+        if ( is_string($raw_annotations_for_image) && !empty($raw_annotations_for_image) ) {
+            $decoded_annotations_for_image = json_decode($raw_annotations_for_image, true);
+            if ( is_array($decoded_annotations_for_image) ) {
+                $annotations_for_current_image = $decoded_annotations_for_image;
             }
         }
         
-        echo wp_json_encode($all_annotations); 
+        echo wp_json_encode($annotations_for_current_image); 
         wp_die();
     }
 
