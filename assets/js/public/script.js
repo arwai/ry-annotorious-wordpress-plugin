@@ -42,13 +42,21 @@ jQuery(document).ready(function($) {
             sequenceMode: true, // Enable viewing multiple images in a sequence
             showSequenceControl: true,
             showReferenceStrip: true,
+            gestureSettingsMouse: {
+                clickToZoom: false, // Enable click to zoom
+                dblClickToZoom: true, // Enable double-click to zoom
+                pinchToZoom: true, // Enable pinch to zoom on touch devices
+                scrollToZoom: true,
+                flickEnabled: true // Enable flicking to navigate through images
+             }, // Enable scroll wheel zoom}
+             showRotationControl: true, // Show rotation control
+             navPrevNextWrap: true, // Enable wrapping for next/previous navigation
             tileSources: images.map(img => ({
                 type: img.type,
                 url: img.url
                 // OpenSeadragon doesn't directly need 'post_id' here, but we'll use it from the 'images' array.
             }))
         });
-
         console.log("OpenSeadragon viewer object created:", osdViewer);
 
         // --- Check if Annotorious is available globally for v2 init ---
