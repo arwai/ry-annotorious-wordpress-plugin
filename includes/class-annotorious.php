@@ -7,11 +7,13 @@ class Annotorious {
 
     // Post Meta Key for display mode
     const META_POST_DISPLAY_MODE = '_ry_annotorious_post_display_mode';
+    // Global Option Key for default new post mode
+    const OPTION_DEFAULT_NEW_POST_MODE = 'ry_annotorious_default_new_post_mode'; // New constant
 
     function __construct() {
         global $wpdb;
 
-        $this->table_name = $wpdb->prefix . 'annotorious_data';
+       $this->table_name = $wpdb->prefix . 'annotorious_data';
         $this->history_table_name = $wpdb->prefix . 'annotorious_history';
 
         // Frontend scripts and styles
@@ -20,11 +22,11 @@ class Annotorious {
         // Admin scripts and styles
         add_action( 'admin_enqueue_scripts', array( $this, 'load_admin_scripts' ) );
 
-        // Settings API (can be kept for future global settings)
+        // Settings API
         add_action( 'admin_init', array( $this, 'ry_annotorious_settings_init' ) );
         add_action( 'admin_menu', array( $this, 'ry_annotorious_add_settings_page' ) );
 
-        // Metabox for image collection & display mode
+        // Metaboxes
         add_action( 'add_meta_boxes', array( $this, 'ry_annotorious_add_all_metaboxes' ) );
         add_action( 'save_post', array( $this, 'save_ry_annotorious_images_metabox' ), 10, 2 );
 
@@ -48,62 +50,81 @@ class Annotorious {
         $this->filter_called = 0;
     }
 
+
     /*************************************
-    * --- Settings API Functions (for potential future global settings) ---
+    * --- Settings API Functions ---
     *************************************/
 
     public function ry_annotorious_settings_init() {
-        // Example: Register a global setting if you need one in the future
-        /*
+        // Register the new global setting for default display mode
         register_setting(
-            'ry_annotorious_options_group',
-            'ry_annotorious_global_setting_example',
-            array(
+            'ry_annotorious_options_group',                     // Option group
+            self::OPTION_DEFAULT_NEW_POST_MODE,                 // Option name
+            array(                                              // Args
                 'type'              => 'string',
-                'sanitize_callback' => 'sanitize_text_field',
-                'default'           => '',
+                'sanitize_callback' => array( $this, 'sanitize_display_mode_option' ),
+                'default'           => 'metabox_viewer', // Default value if option not yet saved
             )
         );
-        */
 
         add_settings_section(
             'ry_annotorious_settings_section_main',
-            'RY Annotorious Global Settings',
-            array($this, 'ry_annotorious_settings_section_main_callback'), // Optional description callback
+            'Openseadragon with Annotorious Global Settings',
+            array($this, 'ry_annotorious_settings_section_main_callback'),
             'ry-annotorious-settings'
         );
 
-        /*
+        // Add the settings field for the new default display mode
         add_settings_field(
-            'ry_annotorious_global_setting_example_field',
-            'Global Setting Example',
-            array( $this, 'ry_annotorious_global_setting_example_callback' ),
-            'ry-annotorious-settings',
-            'ry_annotorious_settings_section_main'
+            'ry_annotorious_default_new_post_mode_field',         // ID
+            'Default Viewer Mode for New Posts/Pages',            // Title
+            array( $this, 'ry_annotorious_default_new_post_mode_callback' ), // Callback to render the field
+            'ry-annotorious-settings',                            // Page slug
+            'ry_annotorious_settings_section_main'                // Section ID
         );
-        */
     }
+
+    // NEW: Sanitize callback for the display mode option
+    public function sanitize_display_mode_option( $input ) {
+        $valid_options = array( 'metabox_viewer', 'gutenberg_block' );
+        if ( in_array( $input, $valid_options, true ) ) {
+            return $input;
+        }
+        return 'metabox_viewer'; // Fallback to a safe default
+    }
+
 
     public function ry_annotorious_settings_section_main_callback() {
-        echo '<p>Configure any global settings for the RY Annotorious plugin here. The primary display choice (default viewer vs. Gutenberg block) is now managed per post/page within its edit screen.</p>';
+        // UPDATED: Message to reflect new global setting
+        echo '<p>Configure global settings for the RY Annotorious plugin. The primary display choice (Default Viewer vs. Gutenberg Block) for individual posts/pages is managed on its edit screen. Below, you can set the <strong>default mode for newly created posts/pages</strong>.</p>';
     }
 
-    /*
-    public function ry_annotorious_global_setting_example_callback() {
-        $option = get_option( 'ry_annotorious_global_setting_example', '' );
+    // NEW: Callback function to render the radio buttons for the default display mode setting
+    public function ry_annotorious_default_new_post_mode_callback() {
+        $option_value = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' ); // Default to 'metabox_viewer' if not set
         ?>
-        <input type="text" id="ry_annotorious_global_setting_example"
-               name="ry_annotorious_global_setting_example"
-               value="<?php echo esc_attr( $option ); ?>" class="regular-text" />
-        <p class="description">Description for this example global setting.</p>
+        <fieldset>
+            <legend class="screen-reader-text"><span><?php _e( 'Default Viewer Mode for New Posts/Pages', 'ry-annotorious' ); ?></span></legend>
+            <label>
+                <input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="metabox_viewer" <?php checked( $option_value, 'metabox_viewer' ); ?> />
+                <?php _e( 'Default Viewer (uses images from "Annotorious Image Collection" metabox)', 'ry-annotorious' ); ?>
+            </label>
+            <br />
+            <label>
+                <input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="gutenberg_block" <?php checked( $option_value, 'gutenberg_block' ); ?> />
+                <?php _e( 'Gutenberg Block (manual placement via block editor)', 'ry-annotorious' ); ?>
+            </label>
+            <p class="description">
+                <?php _e( 'This will be the pre-selected viewer mode when you create a new post or page.', 'ry-annotorious' ); ?>
+            </p>
+        </fieldset>
         <?php
     }
-    */
 
     public function ry_annotorious_add_settings_page() {
         add_options_page(
-            'RY Annotorious Settings',
-            'RY Annotorious',
+            'Openseadragon with Annotorious Settings',
+            'Openseadragon-Annotorious',
             'manage_options',
             'ry-annotorious-settings',
             array( $this, 'ry_annotorious_settings_page_html' )
@@ -119,9 +140,9 @@ class Annotorious {
             <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
             <form action="options.php" method="post">
                 <?php
-                settings_fields( 'ry_annotorious_options_group' ); // Group name for settings
-                do_settings_sections( 'ry-annotorious-settings' ); // Page slug
-                // submit_button( 'Save Global Settings' ); // Uncomment if you have global settings
+                settings_fields( 'ry_annotorious_options_group' );
+                do_settings_sections( 'ry-annotorious-settings' );
+                submit_button( 'Save Settings' ); // UPDATED: Ensure submit button is present and clear
                 ?>
             </form>
         </div>
@@ -134,7 +155,6 @@ class Annotorious {
     *************************************/
 
     function load_scripts(){
-        // Only proceed for singular posts/pages
         if ( ! is_singular() ) {
             return;
         }
@@ -144,13 +164,13 @@ class Annotorious {
             return;
         }
 
-        // Get the display mode for THIS post (default to 'metabox_viewer')
+        // Get the display mode for THIS post
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
         if ( empty( $post_display_mode ) ) {
-            $post_display_mode = 'metabox_viewer'; // Default if not set
+            // UPDATED: Fallback to global option, then to hardcoded 'metabox_viewer'
+            $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
 
-        // Only load default viewer scripts if 'metabox_viewer' is selected for this post
         if ( 'metabox_viewer' === $post_display_mode ) {
             $image_sources = [];
             $viewer_id = 'openseadragon-viewer-' . $current_post_id;
@@ -171,11 +191,10 @@ class Annotorious {
                 }
             }
 
-            // Only enqueue and localize if there are images for this post's default viewer
             if ( !empty( $image_sources ) ) {
                 wp_register_style( 'ry-annotorious-css', RY_ANNOTORIOUS_URL . 'assets/css/annotorious/annotorious.min.css');
                 wp_enqueue_style( 'ry-annotorious-css' );
-
+                // ... (rest of your script enqueueing logic) ...
                 wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true );
                 wp_enqueue_script( 'ry-annotorious-core-js' );
 
@@ -204,7 +223,6 @@ class Annotorious {
                 wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousVars', $data );
             }
         }
-        // If $post_display_mode is 'gutenberg_block', the block itself will handle its script enqueueing.
     }
 
 
@@ -222,7 +240,6 @@ class Annotorious {
     *************************************/
 
     function content_filter($content) {
-        // Only proceed for singular posts/pages, in the main loop and query
         if ( !is_singular() || !in_the_loop() || !is_main_query() ) {
             return $content;
         }
@@ -232,29 +249,26 @@ class Annotorious {
             return $content;
         }
 
-        // Get the display mode for THIS post
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
         if ( empty( $post_display_mode ) ) {
-            $post_display_mode = 'metabox_viewer'; // Default
+            // UPDATED: Fallback to global option, then to hardcoded 'metabox_viewer'
+            $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
 
-        // If Gutenberg block mode is selected for this post, or if filter has already run, do not auto-insert.
         if ( 'gutenberg_block' === $post_display_mode || $this->filter_called > 0) {
             return $content;
         }
 
-        // Proceed with default viewer logic (auto-insert via content filter from metabox images)
         if ( 'metabox_viewer' === $post_display_mode ) {
             $image_ids_json = get_post_meta( $current_post_id, '_ry_annotorious_image_ids', true );
             $image_ids = json_decode( $image_ids_json, true );
 
             if ( !empty( $image_ids ) && is_array( $image_ids ) ) {
-                // Ensure we only add it once, even if the_content is called multiple times by a theme/plugin.
                 if ( $this->filter_called === 0 ) {
                     $this->filter_called++;
                     $viewer_id = 'openseadragon-viewer-' . $current_post_id;
                     $viewer_html = '<div id="' . esc_attr( $viewer_id ) . '" style="width: 100%; height: 600px; background-color: #f0f0f0; border: 1px solid #ccc;" class="ry-annotorious-default-viewer-container"></div>';
-                    return $viewer_html . $content; // Prepend viewer
+                    return $viewer_html . $content;
                 }
             }
         }
@@ -267,50 +281,34 @@ class Annotorious {
     * --- Metabox Functions ---
     *************************************/
 
-    /**
-     * Register both metaboxes.
-     * This function is hooked to 'add_meta_boxes'.
-     */
-    function ry_annotorious_add_all_metaboxes() { // Renamed for clarity
-        // 1. Metabox for Viewer Display Mode (on the side)
+    function ry_annotorious_add_all_metaboxes() {
         add_meta_box(
-            'ry-annotorious-display-mode-metabox',                    // ID
-            __( 'Annotorious Viewer Mode', 'ry-annotorious' ),        // Title
-            array( $this, 'render_ry_annotorious_display_mode_metabox' ), // Callback
-            array( 'post', 'page' ),                                  // Screen (post types)
-            'side',                                                   // Context (position)
-            'default'                                                 // Priority
+            'ry-annotorious-display-mode-metabox',
+            __( 'Openseadragon Viewer', 'ry-annotorious' ),
+            array( $this, 'render_ry_annotorious_display_mode_metabox' ),
+            array( 'post', 'page' ),
+            'side',
+            'default'
         );
 
-        // 2. Metabox for Image Collection (in the normal/main content area)
         add_meta_box(
-            'ry-annotorious-image-collection-metabox',                // ID
-            __( 'Annotorious Image Collection', 'ry-annotorious' ),   // Title
-            array( $this, 'render_ry_annotorious_image_collection_metabox' ), // Callback
-            array( 'post', 'page' ),                                  // Screen (post types)
-            'normal',                                                 // Context
-            'high'                                                    // Priority
+            'ry-annotorious-image-collection-metabox',
+            __( 'Openseadragon Image Collection', 'ry-annotorious' ),
+            array( $this, 'render_ry_annotorious_image_collection_metabox' ),
+            array( 'post', 'page' ),
+            'normal',
+            'high'
         );
     }
 
-    /**
-     * Render the metabox for Viewer Display Mode options.
-     */
     function render_ry_annotorious_display_mode_metabox( $post ) {
-        // Nonce field should ideally be in each metabox if they could be saved independently
-        // or if there's any doubt. However, since WordPress saves all metaboxes in one go
-        // and our save function 'save_ry_annotorious_images_metabox' handles both,
-        // one nonce in the primary metabox (image collection) is usually sufficient.
-        // For clarity and robustness, especially if you ever separate save logic,
-        // you can add a nonce here too. If you keep one save function and one nonce name,
-        // ensure that nonce name is used.
-
-        // wp_nonce_field( 'ry_annotorious_images_metabox_nonce', 'ry_annotorious_images_nonce_display_mode' ); // Example of a separate nonce
-
         // Get saved display mode for this post
         $current_display_mode = get_post_meta( $post->ID, self::META_POST_DISPLAY_MODE, true );
+
+        // If no mode is set for this specific post (e.g., it's a new post), use the global default
         if ( empty( $current_display_mode ) ) {
-            $current_display_mode = 'metabox_viewer'; // Default
+            // UPDATED: Use global default for new/unset posts
+            $current_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
         ?>
         <div id="ry-annotorious-options-container">
@@ -320,7 +318,7 @@ class Annotorious {
                     <?php _e( 'Default Viewer', 'ry-annotorious' ); ?>
                 </label>
                 <br />
-                <small class="description"><?php _e( 'Uses images from the "Annotorious Image Collection" metabox below.', 'ry-annotorious' ); ?></small>
+                <small class="description"><?php _e( 'Viewer automatically loaded', 'ry-annotorious' ); ?></small>
             </p>
             <p>
                 <label>
@@ -334,11 +332,7 @@ class Annotorious {
         <?php
     }
 
-    /**
-     * Render the metabox for Image Collection.
-     */
     function render_ry_annotorious_image_collection_metabox( $post ) {
-        // This is the primary nonce for saving both pieces of data.
         wp_nonce_field( 'ry_annotorious_images_metabox_save', 'ry_annotorious_images_nonce' );
 
         $image_ids_json = get_post_meta( $post->ID, '_ry_annotorious_image_ids', true );
@@ -374,7 +368,6 @@ class Annotorious {
             </p>
         </div>
         <style>
-            /* Styles can remain largely the same, or be moved to a separate admin CSS file */
             #ry-annotorious-images-collection-container .ry-annotorious-image-list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list li { position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list li img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -383,38 +376,43 @@ class Annotorious {
         <?php
     }
 
-    /**
-     * Save data from both metaboxes.
-     * This function is hooked to 'save_post'.
-     */
-    function save_ry_annotorious_images_metabox( $post_id, $post ) { // Function name can remain
-        // Verify nonce (using the nonce name from the image collection metabox)
+    function save_ry_annotorious_images_metabox( $post_id, $post ) {
         if ( ! isset( $_POST['ry_annotorious_images_nonce'] ) || ! wp_verify_nonce( $_POST['ry_annotorious_images_nonce'], 'ry_annotorious_images_metabox_save' ) ) {
             return $post_id;
         }
-        // Check autosave
         if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
             return $post_id;
         }
-        // Check permissions
         $post_type = get_post_type_object( $post->post_type );
         if ( ! current_user_can( $post_type->cap->edit_post, $post_id ) ) {
             return $post_id;
         }
 
-        // Save Display Mode for the post (from the side metabox)
+        // UPDATED: Save Display Mode logic
+        $existing_display_mode = get_post_meta( $post_id, self::META_POST_DISPLAY_MODE, true );
+
         if ( isset( $_POST[self::META_POST_DISPLAY_MODE] ) ) {
             $display_mode = sanitize_text_field( $_POST[self::META_POST_DISPLAY_MODE] );
             if ( in_array( $display_mode, array( 'metabox_viewer', 'gutenberg_block' ) ) ) {
                 update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $display_mode );
             } else {
-                update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, 'metabox_viewer' );
+                // If somehow an invalid value is submitted, fall back to global default or existing.
+                $fallback_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
+                update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $existing_display_mode ? $existing_display_mode : $fallback_mode );
             }
         } else {
-             update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, 'metabox_viewer' );
+            // Field not submitted. Only set a default if it's a new post (no meta value yet).
+            if ( empty( $existing_display_mode ) && !wp_is_post_revision($post_id) && !wp_is_post_autosave($post_id) ) {
+                // This ensures that new posts get the global default if no choice is made.
+                // It also applies if the meta was somehow deleted.
+                $global_default = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
+                update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $global_default );
+            }
+            // If $existing_display_mode is not empty and the field wasn't submitted,
+            // it means we keep the existing value, so no action needed here.
         }
 
-        // Sanitize and save the image IDs (from the main metabox)
+
         if ( isset( $_POST['_ry_annotorious_image_ids'] ) ) {
             $image_ids_json = wp_unslash( $_POST['_ry_annotorious_image_ids'] );
             $image_ids = json_decode( $image_ids_json, true );
@@ -436,7 +434,7 @@ class Annotorious {
     *************************************/
     function anno_get() {
         global $wpdb; // Make $wpdb accessible
-        $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0; 
+        $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
 
         if (empty($attachment_id)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Missing attachment_id.'));
@@ -445,14 +443,14 @@ class Annotorious {
 
         header('Content-Type: application/json');
 
-        $all_annotations = []; 
+        $all_annotations = [];
 
         // Retrieve annotations from the custom table for the specific attachment_id
-        $results = $wpdb->get_results( 
-            $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ), 
-            ARRAY_A 
+        $results = $wpdb->get_results(
+            $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ),
+            ARRAY_A
         );
-        
+
         if ( ! empty( $results ) ) {
             foreach ( $results as $row ) {
                 $decoded_annotation = json_decode( $row['annotation_data'], true );
@@ -461,8 +459,8 @@ class Annotorious {
                 }
             }
         }
-        
-        echo wp_json_encode($all_annotations); 
+
+        echo wp_json_encode($all_annotations);
         wp_die();
     }
 
@@ -473,14 +471,14 @@ class Annotorious {
     *************************************/
     function anno_add() {
         global $wpdb;
-        $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : ''; 
+        $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
 
         if (empty($annotation_json)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Annotation data missing.'));
             wp_die();
         }
 
-        $annotation = json_decode($annotation_json, true); 
+        $annotation = json_decode($annotation_json, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
             echo wp_json_encode(array('success' => false, 'message' => 'Invalid JSON data.', 'error_code' => json_last_error_msg()));
@@ -515,10 +513,10 @@ class Annotorious {
         if (isset($annotation['body'][0]['value'])) {
             $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']);
         }
-        
+
         // --- LOG 'CREATED' ACTION TO HISTORY TABLE ---
         $current_user_id = get_current_user_id(); // Get current user ID (0 if not logged in)
-        
+
         $logged_history = $wpdb->insert(
             $this->history_table_name,
             array(
@@ -580,7 +578,7 @@ class Annotorious {
             echo wp_json_encode(array('success' => false, 'message' => 'Could not find attachment ID for source URL (delete): ' . $image_url));
             wp_die();
         }
-        
+
         // --- LOG 'DELETED' ACTION TO HISTORY TABLE ---
         $current_user_id = get_current_user_id();
 
@@ -589,7 +587,7 @@ class Annotorious {
             $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ),
             ARRAY_A
         );
-        
+
         $logged_history = false;
         if ( ! empty( $existing_annotation_row ) ) {
             $logged_history = $wpdb->insert(
@@ -660,7 +658,7 @@ class Annotorious {
         if (isset($annotation['body'][0]['value'])) {
             $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']);
         }
-        
+
         $updated = $wpdb->update(
             $this->table_name,
             array(
@@ -732,7 +730,7 @@ class Annotorious {
             $where_clauses[] = 'annotation_id_from_annotorious = %s';
             $query_params[] = $annotation_id;
         }
-        
+
         $where_sql = implode( ' AND ', $where_clauses );
 
         if (empty($where_sql)) { // Should not happen with above checks, but as a fallback
@@ -742,9 +740,9 @@ class Annotorious {
 
         // Fetch history records, ordered by timestamp
         $sql = "SELECT id, annotation_id_from_annotorious, attachment_id, action_type, annotation_data_snapshot, user_id, action_timestamp FROM {$this->history_table_name} WHERE {$where_sql} ORDER BY action_timestamp DESC";
-        $results = $wpdb->get_results( 
-            $wpdb->prepare( $sql, $query_params ), 
-            ARRAY_A 
+        $results = $wpdb->get_results(
+            $wpdb->prepare( $sql, $query_params ),
+            ARRAY_A
         );
 
         if ( ! empty( $results ) ) {
@@ -753,24 +751,20 @@ class Annotorious {
                 $user_info = get_userdata( $row['user_id'] );
                 $username = $user_info ? $user_info->display_name : 'Guest/Unknown';
 
-                // Decode snapshot for client-side use if needed, but send as string for now
-                // $decoded_snapshot = json_decode($row['annotation_data_snapshot'], true);
-                // if (json_last_error() !== JSON_ERROR_NONE) { $decoded_snapshot = null; }
-
                 $history_records[] = [
                     'id'               => (int) $row['id'],
                     'annotationId'     => $row['annotation_id_from_annotorious'],
                     'attachmentId'     => (int) $row['attachment_id'],
                     'actionType'       => $row['action_type'],
-                    'annotationData'   => $row['annotation_data_snapshot'], // Send as string; JS can parse if needed
+                    'annotationData'   => $row['annotation_data_snapshot'],
                     'userId'           => (int) $row['user_id'],
                     'userName'         => $username,
                     'timestamp'        => $row['action_timestamp'],
                 ];
             }
         }
-        
-        echo wp_json_encode(array('success' => true, 'history' => $history_records)); 
+
+        echo wp_json_encode(array('success' => true, 'history' => $history_records));
         wp_die();
     }
 }
