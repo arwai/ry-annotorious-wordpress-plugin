@@ -3,12 +3,15 @@
 class Annotorious {
     public $filter_called;
     private $table_name; // For current annotations
-    private $history_table_name; // NEW: For annotation history
+    private $history_table_name; // For annotation history
 
     // Post Meta Key for display mode
     const META_POST_DISPLAY_MODE = '_ry_annotorious_post_display_mode';
     // Global Option Key for default new post mode
     const OPTION_DEFAULT_NEW_POST_MODE = 'ry_annotorious_default_new_post_mode';
+    // NEW: Post Meta Key for the "set first as featured" checkbox
+    const META_SET_FIRST_AS_FEATURED = '_ry_annotorious_set_first_as_featured';
+
 
     function __construct() {
         global $wpdb;
@@ -33,16 +36,16 @@ class Annotorious {
         // AJAX actions for annotations (CRUD)
         add_action( 'wp_ajax_nopriv_anno_get', array( $this, 'anno_get') );
         add_action( 'wp_ajax_anno_get', array( $this, 'anno_get' ) );
+        // ... (other AJAX actions) ...
         add_action( 'wp_ajax_nopriv_anno_add', array( $this, 'anno_add') );
         add_action( 'wp_ajax_anno_add', array( $this, 'anno_add' ) );
         add_action( 'wp_ajax_nopriv_anno_delete', array( $this, 'anno_delete') );
         add_action( 'wp_ajax_anno_delete', array( $this, 'anno_delete' ) );
         add_action( 'wp_ajax_nopriv_anno_update', array( $this, 'anno_update') );
         add_action( 'wp_ajax_anno_update', array( $this, 'anno_update' ) );
-
-        // NEW: AJAX action for retrieving annotation history
         add_action( 'wp_ajax_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
         add_action( 'wp_ajax_nopriv_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
+
 
         // Content filter for frontend display
         add_filter( 'the_content', array( $this , 'content_filter' ), 20 );
@@ -50,11 +53,11 @@ class Annotorious {
         $this->filter_called = 0;
     }
 
+    // ... (Settings API functions, script loading, content filter remain the same as your last version) ...
 
     /*************************************
     * --- Settings API Functions ---
     *************************************/
-
     public function ry_annotorious_settings_init() {
         register_setting(
             'ry_annotorious_options_group',
@@ -65,14 +68,12 @@ class Annotorious {
                 'default'           => 'metabox_viewer',
             )
         );
-
         add_settings_section(
             'ry_annotorious_settings_section_main',
             'Openseadragon with Annotorious Global Settings',
             array($this, 'ry_annotorious_settings_section_main_callback'),
             'ry-annotorious-settings'
         );
-
         add_settings_field(
             'ry_annotorious_default_new_post_mode_field',
             'Default Viewer Mode for New Posts/Pages',
@@ -81,190 +82,94 @@ class Annotorious {
             'ry_annotorious_settings_section_main'
         );
     }
-
     public function sanitize_display_mode_option( $input ) {
         $valid_options = array( 'metabox_viewer', 'gutenberg_block' );
-        if ( in_array( $input, $valid_options, true ) ) {
-            return $input;
-        }
+        if ( in_array( $input, $valid_options, true ) ) { return $input; }
         return 'metabox_viewer';
     }
-
-
     public function ry_annotorious_settings_section_main_callback() {
         echo '<p>Configure global settings for the RY Annotorious plugin. The primary display choice (Default Viewer vs. Gutenberg Block) for individual posts/pages is managed on its edit screen. Below, you can set the <strong>default mode for newly created posts/pages</strong>.</p>';
     }
-
     public function ry_annotorious_default_new_post_mode_callback() {
         $option_value = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         ?>
         <fieldset>
             <legend class="screen-reader-text"><span><?php _e( 'Default Viewer Mode for New Posts/Pages', 'ry-annotorious' ); ?></span></legend>
-            <label>
-                <input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="metabox_viewer" <?php checked( $option_value, 'metabox_viewer' ); ?> />
-                <?php _e( 'Default Viewer (uses images from "Annotorious Image Collection" metabox)', 'ry-annotorious' ); ?>
-            </label>
-            <br />
-            <label>
-                <input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="gutenberg_block" <?php checked( $option_value, 'gutenberg_block' ); ?> />
-                <?php _e( 'Gutenberg Block (manual placement via block editor)', 'ry-annotorious' ); ?>
-            </label>
-            <p class="description">
-                <?php _e( 'This will be the pre-selected viewer mode when you create a new post or page.', 'ry-annotorious' ); ?>
-            </p>
+            <label><input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="metabox_viewer" <?php checked( $option_value, 'metabox_viewer' ); ?> /> <?php _e( 'Default Viewer (uses images from "Annotorious Image Collection" metabox)', 'ry-annotorious' ); ?></label><br />
+            <label><input type="radio" name="<?php echo esc_attr( self::OPTION_DEFAULT_NEW_POST_MODE ); ?>" value="gutenberg_block" <?php checked( $option_value, 'gutenberg_block' ); ?> /> <?php _e( 'Gutenberg Block (manual placement via block editor)', 'ry-annotorious' ); ?></label>
+            <p class="description"><?php _e( 'This will be the pre-selected viewer mode when you create a new post or page.', 'ry-annotorious' ); ?></p>
         </fieldset>
         <?php
     }
-
     public function ry_annotorious_add_settings_page() {
-        add_options_page(
-            'Openseadragon with Annotorious Settings',
-            'Openseadragon-Annotorious',
-            'manage_options',
-            'ry-annotorious-settings',
-            array( $this, 'ry_annotorious_settings_page_html' )
-        );
+        add_options_page('Openseadragon with Annotorious Settings', 'Openseadragon-Annotorious', 'manage_options', 'ry-annotorious-settings', array( $this, 'ry_annotorious_settings_page_html' ));
     }
-
     public function ry_annotorious_settings_page_html() {
-        if ( ! current_user_can( 'manage_options' ) ) {
-            return;
-        }
+        if ( ! current_user_can( 'manage_options' ) ) { return; }
         ?>
-        <div class="wrap">
-            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
-            <form action="options.php" method="post">
-                <?php
-                settings_fields( 'ry_annotorious_options_group' );
-                do_settings_sections( 'ry-annotorious-settings' );
-                submit_button( 'Save Settings' );
-                ?>
-            </form>
-        </div>
-        <?php
+        <div class="wrap"><h1><?php echo esc_html( get_admin_page_title() ); ?></h1><form action="options.php" method="post"><?php settings_fields( 'ry_annotorious_options_group' ); do_settings_sections( 'ry-annotorious-settings' ); submit_button( 'Save Settings' ); ?></form></div><?php
     }
-
 
     /*************************************
     * --- Script & Style Loading Functions ---
     *************************************/
-
     function load_scripts(){
-        if ( ! is_singular() ) {
-            return;
-        }
-
+        if ( ! is_singular() ) { return; }
         $current_post_id = get_the_ID();
-        if ( ! $current_post_id ) {
-            return;
-        }
-
+        if ( ! $current_post_id ) { return; }
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
-        if ( empty( $post_display_mode ) ) {
-            $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
-        }
-
+        if ( empty( $post_display_mode ) ) { $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );}
         if ( 'metabox_viewer' === $post_display_mode ) {
-            $image_sources = [];
-            $viewer_id = 'openseadragon-viewer-' . $current_post_id;
-
+            $image_sources = []; $viewer_id = 'openseadragon-viewer-' . $current_post_id;
             $image_ids_json = get_post_meta( $current_post_id, '_ry_annotorious_image_ids', true );
             $image_ids = json_decode( $image_ids_json, true );
-
             if ( !empty( $image_ids ) && is_array( $image_ids ) ) {
                 foreach ( $image_ids as $id ) {
                     $image_url_array = wp_get_attachment_image_src( $id, 'full' );
                     if ( $image_url_array && is_array( $image_url_array ) && !empty( $image_url_array[0] ) ) {
-                        $image_sources[] = [
-                            'type'    => 'image',
-                            'url'     => $image_url_array[0],
-                            'post_id' => $id
-                        ];
+                        $image_sources[] = [ 'type' => 'image', 'url' => $image_url_array[0], 'post_id' => $id ];
                     }
                 }
             }
-
             if ( !empty( $image_sources ) ) {
-                wp_register_style( 'ry-annotorious-css', RY_ANNOTORIOUS_URL . 'assets/css/annotorious/annotorious.min.css');
-                wp_enqueue_style( 'ry-annotorious-css' );
-                wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true );
-                wp_enqueue_script( 'ry-annotorious-core-js' );
-
-                wp_register_script( 'openseadragon-js', RY_ANNOTORIOUS_URL . 'assets/js/openseadragon/openseadragon.min.js', array(), '5.0.1', true );
-                wp_enqueue_script( 'openseadragon-js' );
-
-                wp_register_script( 'ry-annotorious-osd-plugin-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'ry-annotorious-core-js', 'openseadragon-js' ), '2.7.17', true );
-                wp_enqueue_script( 'ry-annotorious-osd-plugin-js' );
-
-                wp_register_script('ry-annotorious-public-js', RY_ANNOTORIOUS_URL . 'assets/js/public/script.js', array('jquery', 'ry-annotorious-osd-plugin-js'),'1.1', true);
-                wp_enqueue_script('ry-annotorious-public-js');
-
-                $viewer_config = [
-                    'id'            => $viewer_id,
-                    'images'        => $image_sources,
-                    'currentPostId' => $current_post_id,
-                ];
+                wp_register_style( 'ry-annotorious-css', RY_ANNOTORIOUS_URL . 'assets/css/annotorious/annotorious.min.css'); wp_enqueue_style( 'ry-annotorious-css' );
+                wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true ); wp_enqueue_script( 'ry-annotorious-core-js' );
+                wp_register_script( 'openseadragon-js', RY_ANNOTORIOUS_URL . 'assets/js/openseadragon/openseadragon.min.js', array(), '5.0.1', true ); wp_enqueue_script( 'openseadragon-js' );
+                wp_register_script( 'ry-annotorious-osd-plugin-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'ry-annotorious-core-js', 'openseadragon-js' ), '2.7.17', true ); wp_enqueue_script( 'ry-annotorious-osd-plugin-js' );
+                wp_register_script('ry-annotorious-public-js', RY_ANNOTORIOUS_URL . 'assets/js/public/script.js', array('jquery', 'ry-annotorious-osd-plugin-js'),'1.1', true); wp_enqueue_script('ry-annotorious-public-js');
+                $viewer_config = [ 'id' => $viewer_id, 'images' => $image_sources, 'currentPostId' => $current_post_id, ];
                 wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousViewerConfig', $viewer_config );
-
-                $data = array(
-                    'post_id'    => $current_post_id,
-                    'plugin_url' => RY_ANNOTORIOUS_URL,
-                    'ajax_url'   => admin_url( 'admin-ajax.php' )
-                );
-                if (is_user_logged_in()) {  $data['loggedin'] = true;  } else { $data['loggedin'] = false; }
+                $data = array( 'post_id' => $current_post_id, 'plugin_url' => RY_ANNOTORIOUS_URL, 'ajax_url' => admin_url( 'admin-ajax.php' ) );
+                if (is_user_logged_in()) { $data['loggedin'] = true; } else { $data['loggedin'] = false; }
                 wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousVars', $data );
             }
         }
     }
-
-
     function load_admin_scripts($hook_suffix) {
-        // Only load on post edit screens
         if (in_array($hook_suffix, array('post.php', 'post-new.php'))) {
-            // MODIFIED: Add 'jquery-ui-sortable' as a dependency
-            wp_register_script('admin-js', RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js', array('jquery', 'jquery-ui-sortable'),'1.13', true); // Increment version
+            wp_register_script('admin-js', RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js', array('jquery', 'jquery-ui-sortable'),'1.13', true);
             wp_enqueue_script('admin-js');
-            wp_enqueue_media(); // For the image uploader in the metabox
-
-            // Optionally, you can add a small CSS for the sortable placeholder directly here
-            // or include it in a separate admin CSS file.
-            $custom_css = ".ry-annotorious-image-list li { cursor: move; }";
-            $custom_css .= ".ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }";
-            wp_add_inline_style( 'wp-admin', $custom_css ); // Add to a common admin handle or your own admin CSS handle
+            wp_enqueue_media();
+            $custom_css = ".ry-annotorious-image-list li { cursor: move; } .ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }";
+            wp_add_inline_style( 'wp-admin', $custom_css );
         }
     }
 
     /*************************************
     * --- Content Filter ---
     *************************************/
-
     function content_filter($content) {
-        if ( !is_singular() || !in_the_loop() || !is_main_query() ) {
-            return $content;
-        }
-
-        $current_post_id = get_the_ID();
-        if ( ! $current_post_id ) {
-            return $content;
-        }
-
+        if ( !is_singular() || !in_the_loop() || !is_main_query() ) { return $content; }
+        $current_post_id = get_the_ID(); if ( ! $current_post_id ) { return $content; }
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
-        if ( empty( $post_display_mode ) ) {
-            $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
-        }
-
-        if ( 'gutenberg_block' === $post_display_mode || $this->filter_called > 0) {
-            return $content;
-        }
-
+        if ( empty( $post_display_mode ) ) { $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );}
+        if ( 'gutenberg_block' === $post_display_mode || $this->filter_called > 0) { return $content;}
         if ( 'metabox_viewer' === $post_display_mode ) {
             $image_ids_json = get_post_meta( $current_post_id, '_ry_annotorious_image_ids', true );
             $image_ids = json_decode( $image_ids_json, true );
-
             if ( !empty( $image_ids ) && is_array( $image_ids ) ) {
                 if ( $this->filter_called === 0 ) {
-                    $this->filter_called++;
-                    $viewer_id = 'openseadragon-viewer-' . $current_post_id;
+                    $this->filter_called++; $viewer_id = 'openseadragon-viewer-' . $current_post_id;
                     $viewer_html = '<div id="' . esc_attr( $viewer_id ) . '" style="width: 100%; height: 600px; background-color: #f0f0f0; border: 1px solid #ccc;" class="ry-annotorious-default-viewer-container"></div>';
                     return $viewer_html . $content;
                 }
@@ -274,8 +179,6 @@ class Annotorious {
     }
 
 
-
-/************** METABOX ************************************************/
     /*************************************
     * --- Metabox Functions ---
     *************************************/
@@ -283,47 +186,27 @@ class Annotorious {
     function ry_annotorious_add_all_metaboxes() {
         add_meta_box(
             'ry-annotorious-display-mode-metabox',
-            __( 'Viewer Mode', 'ry-annotorious' ),
+            __( 'Annotorious Viewer Mode', 'ry-annotorious' ),
             array( $this, 'render_ry_annotorious_display_mode_metabox' ),
-            array( 'post', 'page' ),
-            'side',
-            'default'
+            array( 'post', 'page' ), 'side', 'default'
         );
-
         add_meta_box(
             'ry-annotorious-image-collection-metabox',
-            __( 'Openseadragon Image Collection (sortable)', 'ry-annotorious' ), // MODIFIED: Title to indicate sortable
+            __( 'Annotorious Image Collection (sortable)', 'ry-annotorious' ),
             array( $this, 'render_ry_annotorious_image_collection_metabox' ),
-            array( 'post', 'page' ),
-            'normal',
-            'high'
+            array( 'post', 'page' ), 'normal', 'high'
         );
     }
 
     function render_ry_annotorious_display_mode_metabox( $post ) {
         $current_display_mode = get_post_meta( $post->ID, self::META_POST_DISPLAY_MODE, true );
-
         if ( empty( $current_display_mode ) ) {
             $current_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
         ?>
         <div id="ry-annotorious-options-container">
-            <p>
-                <label>
-                    <input type="radio" name="<?php echo esc_attr( self::META_POST_DISPLAY_MODE ); ?>" value="metabox_viewer" <?php checked( $current_display_mode, 'metabox_viewer' ); ?> />
-                    <?php _e( 'Default Viewer', 'ry-annotorious' ); ?>
-                </label>
-                <br />
-                <small class="description"><?php _e( 'Automatic viewer loaded', 'ry-annotorious' ); ?></small>
-            </p>
-            <p>
-                <label>
-                    <input type="radio" name="<?php echo esc_attr( self::META_POST_DISPLAY_MODE ); ?>" value="gutenberg_block" <?php checked( $current_display_mode, 'gutenberg_block' ); ?> />
-                    <?php _e( 'Gutenberg Block', 'ry-annotorious' ); ?>
-                </label>
-                <br/>
-                <small class="description"><?php _e( 'Manual placement via Gutenberg block.', 'ry-annotorious' ); ?></small>
-            </p>
+            <p><label><input type="radio" name="<?php echo esc_attr( self::META_POST_DISPLAY_MODE ); ?>" value="metabox_viewer" <?php checked( $current_display_mode, 'metabox_viewer' ); ?> /> <?php _e( 'Default Viewer', 'ry-annotorious' ); ?></label><br /><small class="description"><?php _e( 'Uses images from the "Annotorious Image Collection" metabox below.', 'ry-annotorious' ); ?></small></p>
+            <p><label><input type="radio" name="<?php echo esc_attr( self::META_POST_DISPLAY_MODE ); ?>" value="gutenberg_block" <?php checked( $current_display_mode, 'gutenberg_block' ); ?> /> <?php _e( 'Gutenberg Block', 'ry-annotorious' ); ?></label><br/><small class="description"><?php _e( 'Manual placement via Gutenberg block.', 'ry-annotorious' ); ?></small></p>
         </div>
         <?php
     }
@@ -336,8 +219,23 @@ class Annotorious {
         if ( ! is_array( $image_ids ) ) {
             $image_ids = array();
         }
+
+        // NEW: Get saved state for the "set first as featured" checkbox
+        $set_as_featured = get_post_meta( $post->ID, self::META_SET_FIRST_AS_FEATURED, true );
         ?>
         <div id="ry-annotorious-images-collection-container">
+            
+            <p style="margin-bottom: 15px;">
+                <label for="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>">
+                    <input type="checkbox"
+                           name="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>"
+                           id="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>"
+                           value="yes"
+                           <?php checked( $set_as_featured, 'yes' ); ?> />
+                    <?php _e( 'Use the first image in this collection as the post\'s featured image.', 'ry-annotorious' ); ?>
+                </label>
+            </p>
+
             <p class="description">
                 <?php _e( 'Select images from the media library. Drag and drop to reorder. These will be used if "Default Viewer" mode is active.', 'ry-annotorious' ); ?>
             </p>
@@ -347,7 +245,7 @@ class Annotorious {
                     foreach ( $image_ids as $image_id ) {
                         $image_thumb_url = wp_get_attachment_image_url( $image_id, 'thumbnail' );
                         if ( $image_thumb_url ) {
-                            echo '<li data-id="' . esc_attr( $image_id ) . '">'; // data-id is crucial
+                            echo '<li data-id="' . esc_attr( $image_id ) . '">';
                             echo '<img src="' . esc_url( $image_thumb_url ) . '" style="max-width:100px; max-height:100px; display:block;" />';
                             echo '<a href="#" class="ry-annotorious-remove-image dashicons dashicons-trash" title="Remove image"></a>';
                             echo '</li>';
@@ -364,13 +262,10 @@ class Annotorious {
             </p>
         </div>
         <style>
-            /* Styles can remain largely the same, or be moved to a separate admin CSS file */
-            /* MODIFIED: Added cursor: move for draggable items */
             #ry-annotorious-images-collection-container .ry-annotorious-image-list li { cursor: move; position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list li img { max-width: 100%; max-height: 100%; object-fit: contain; }
             #ry-annotorious-images-collection-container .ry-annotorious-remove-image { position: absolute; top: 0; right: 0; background: rgba(255,0,0,0.7); color: white; padding: 3px; cursor: pointer; line-height: 1; text-decoration: none; }
-            /* Placeholder style can also be added here or in load_admin_scripts' inline style */
             .ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }
         </style>
         <?php
@@ -383,13 +278,15 @@ class Annotorious {
         if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
             return $post_id;
         }
-        $post_type = get_post_type_object( $post->post_type );
-        if ( ! current_user_can( $post_type->cap->edit_post, $post_id ) ) {
+        // Check post type object before accessing cap property
+        $post_type_object = get_post_type_object( $post->post_type );
+        if ( ! $post_type_object || ! current_user_can( $post_type_object->cap->edit_post, $post_id ) ) {
             return $post_id;
         }
 
-        $existing_display_mode = get_post_meta( $post_id, self::META_POST_DISPLAY_MODE, true );
 
+        // Save Display Mode logic
+        $existing_display_mode = get_post_meta( $post_id, self::META_POST_DISPLAY_MODE, true );
         if ( isset( $_POST[self::META_POST_DISPLAY_MODE] ) ) {
             $display_mode = sanitize_text_field( $_POST[self::META_POST_DISPLAY_MODE] );
             if ( in_array( $display_mode, array( 'metabox_viewer', 'gutenberg_block' ) ) ) {
@@ -405,26 +302,51 @@ class Annotorious {
             }
         }
 
-        // The image IDs are saved from the hidden field, which will be updated by JavaScript
-        // No changes needed here for the reordering itself, as JS handles the hidden input value.
+        // Save Image IDs
         if ( isset( $_POST['_ry_annotorious_image_ids'] ) ) {
             $image_ids_json = wp_unslash( $_POST['_ry_annotorious_image_ids'] );
-            // Validate if it's actually a JSON string of an array of integers.
             $image_ids = json_decode( $image_ids_json, true );
-
             if ( is_array( $image_ids ) ) {
-                $sanitized_image_ids = array_map( 'intval', $image_ids ); // Ensure all IDs are integers
-                // Optional: Further filter out non-positive IDs if necessary
-                // $sanitized_image_ids = array_filter($sanitized_image_ids, function($id) { return $id > 0; });
-                update_post_meta( $post_id, '_ry_annotorious_image_ids', json_encode( array_values($sanitized_image_ids) ) ); // Re-index array
+                $sanitized_image_ids = array_map( 'intval', $image_ids );
+                update_post_meta( $post_id, '_ry_annotorious_image_ids', json_encode( array_values($sanitized_image_ids) ) );
             } else {
-                 // If it's not a valid array (e.g., empty string after all images removed, or corrupted data)
                  delete_post_meta( $post_id, '_ry_annotorious_image_ids' );
             }
         } else {
             delete_post_meta( $post_id, '_ry_annotorious_image_ids' );
         }
+
+
+        // --- NEW: Save "Set First as Featured" option and update featured image ---
+        $set_first_as_featured_choice = isset( $_POST[self::META_SET_FIRST_AS_FEATURED] ) ? 'yes' : 'no';
+        update_post_meta( $post_id, self::META_SET_FIRST_AS_FEATURED, $set_first_as_featured_choice );
+
+        if ( 'yes' === $set_first_as_featured_choice ) {
+            // Get the (potentially reordered) image IDs that were just saved or are being submitted
+            $image_ids_for_featured_json = isset( $_POST['_ry_annotorious_image_ids'] ) ? wp_unslash( $_POST['_ry_annotorious_image_ids'] ) : get_post_meta($post_id, '_ry_annotorious_image_ids', true);
+            $image_ids_for_featured = json_decode( $image_ids_for_featured_json, true );
+
+            if ( is_array( $image_ids_for_featured ) && ! empty( $image_ids_for_featured ) ) {
+                $first_image_id = intval( $image_ids_for_featured[0] );
+                if ( $first_image_id > 0 ) {
+                    // Only update if the new first image is different from the current featured image, or if none is set.
+                    $current_featured_image_id = get_post_thumbnail_id( $post_id );
+                    if ( $first_image_id != $current_featured_image_id ) {
+                        set_post_thumbnail( $post_id, $first_image_id );
+                    }
+                }
+            } else {
+                // If the box is checked, but the image collection is empty,
+                // we won't set or remove any featured image.
+                // If you wanted to remove a featured image if the collection becomes empty:
+                // if (get_post_thumbnail_id($post_id)) { delete_post_thumbnail($post_id); }
+            }
+        }
+        // If $set_first_as_featured_choice is 'no', we don't modify the featured image.
+        // The user can manage it via the standard WordPress featured image metabox.
+        // --- End "Set First as Featured" ---
     }
+
 /************** AJAX ************************************************/
 
     /*************************************
