@@ -3,7 +3,7 @@
     Plugin Name: OpenSeadragon image viewer with Annotorious (annotations)
     Plugin URI: arwai.me
     Description: Extends WordPress to manage and annotate image collections via OpenSeadragon and Annotorious.
-    Version: 1.1.1
+    Version: 1.1.2
     Author: Arwai (based on Annotorius-wp by Ben Johnston)
 */
 

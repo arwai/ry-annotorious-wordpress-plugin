@@ -49,12 +49,16 @@ jQuery(document).ready(function($) {
                 scrollToZoom: true,
                 flickEnabled: true // Enable flicking to navigate through images
              }, // Enable scroll wheel zoom}
-             showRotationControl: true, // Show rotation control
-             navPrevNextWrap: true, // Enable wrapping for next/previous navigation
+            showRotationControl: true, // Show rotation control
+            navPrevNextWrap: true, // Enable wrapping for next/previous navigation
+            autoResize: false, // Automatically resize the viewer
+                visibilityRatio: 1,
+            minZoomLevel: 1,
+            maxZoomLevel: 5,
+            defaultZoomLevel: 1,
             tileSources: images.map(img => ({
                 type: img.type,
                 url: img.url
-                // OpenSeadragon doesn't directly need 'post_id' here, but we'll use it from the 'images' array.
             }))
         });
         console.log("OpenSeadragon viewer object created:", osdViewer);

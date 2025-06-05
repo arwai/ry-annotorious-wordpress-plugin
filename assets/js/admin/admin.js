@@ -2,7 +2,7 @@ jQuery(document).ready(function($) {
 
     console.log("admin.js file has loaded and is executing."); // Verification log
 
-    // MODIFIED: Corrected selector to match the PHP output for the main container
+    // Corrected selector to match the PHP output for the main container
     var $imageCollectionContainer = $('#ry-annotorious-images-collection-container');
 
     // If the corrected container isn't found, log an error and exit if necessary.
@@ -26,7 +26,7 @@ jQuery(document).ready(function($) {
         return html;
     }
 
-    // NEW: Function to update the hidden field after sorting
+    // Function to update the hidden field after sorting
     function updateImageIdsAfterSort() {
         var imageIds = [];
         if ($imageList.length) { // Ensure image list exists

@@ -163,7 +163,7 @@ class Annotorious {
         <?php
     }
 
-    // NEW: Callback function to render the checkboxes for active post types
+    // Callback function to render the checkboxes for active post types
     public function ry_annotorious_active_post_types_callback() {
         $saved_options = $this->get_active_post_types(); // Use helper to get defaults
 
@@ -231,7 +231,7 @@ class Annotorious {
 
     function load_scripts(){
         $active_post_types = $this->get_active_post_types();
-        // MODIFIED: Only proceed for singular views of active post types
+        // Only proceed for singular views of active post types
         if ( ! is_singular( $active_post_types ) ) {
             return;
         }
@@ -272,8 +272,7 @@ class Annotorious {
                 wp_enqueue_style( 'ry-annotorious-css' );
                 wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true );
                 wp_enqueue_script( 'ry-annotorious-core-js' );
-                // ... and so on for other scripts
-                 wp_register_script( 'openseadragon-js', RY_ANNOTORIOUS_URL . 'assets/js/openseadragon/openseadragon.min.js', array(), '5.0.1', true );
+                wp_register_script( 'openseadragon-js', RY_ANNOTORIOUS_URL . 'assets/js/openseadragon/openseadragon.min.js', array(), '5.0.1', true );
                 wp_enqueue_script( 'openseadragon-js' );
 
                 wp_register_script( 'ry-annotorious-osd-plugin-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/openseadragon-annotorious.min.js', array( 'ry-annotorious-core-js', 'openseadragon-js' ), '2.7.17', true );
@@ -302,7 +301,7 @@ class Annotorious {
 
 
     function load_admin_scripts($hook_suffix) {
-        // MODIFIED: Only load on post edit screens for active post types
+        // Only load on post edit screens for active post types
         if (in_array($hook_suffix, array('post.php', 'post-new.php'))) {
             $current_screen = get_current_screen();
             // Ensure $current_screen is an object and post_type property exists
@@ -324,7 +323,7 @@ class Annotorious {
 
     function content_filter($content) {
         $active_post_types = $this->get_active_post_types();
-        // MODIFIED: Only proceed for singular views of active post types, in the main loop and query
+        // Only proceed for singular views of active post types, in the main loop and query
         if ( !is_singular( $active_post_types ) || !in_the_loop() || !is_main_query() ) {
             return $content;
         }
@@ -376,7 +375,7 @@ class Annotorious {
             'ry-annotorious-display-mode-metabox',
             __( 'Annotorious Viewer Mode', 'ry-annotorious' ),
             array( $this, 'render_ry_annotorious_display_mode_metabox' ),
-            $active_post_types, // MODIFIED: Use dynamic list
+            $active_post_types, // Use dynamic list
             'side',
             'default'
         );
@@ -385,7 +384,7 @@ class Annotorious {
             'ry-annotorious-image-collection-metabox',
             __( 'Annotorious Image Collection (sortable)', 'ry-annotorious' ),
             array( $this, 'render_ry_annotorious_image_collection_metabox' ),
-            $active_post_types, // MODIFIED: Use dynamic list
+            $active_post_types, // Use dynamic list
             'normal',
             'high'
         );
@@ -406,7 +405,6 @@ class Annotorious {
     }
 
     function render_ry_annotorious_image_collection_metabox( $post ) {
-        // ... (this function remains the same as your last version, including the "set first as featured" checkbox)
         wp_nonce_field( 'ry_annotorious_images_metabox_save', 'ry_annotorious_images_nonce' );
         $image_ids_json = get_post_meta( $post->ID, '_ry_annotorious_image_ids', true );
         $image_ids = json_decode( $image_ids_json, true );
@@ -414,12 +412,13 @@ class Annotorious {
         $set_as_featured = get_post_meta( $post->ID, self::META_SET_FIRST_AS_FEATURED, true );
         ?>
         <div id="ry-annotorious-images-collection-container">
-            <p style="margin-bottom: 15px;"><label for="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>"><input type="checkbox" name="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" id="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" value="yes" <?php checked( $set_as_featured, 'yes' ); ?> /> <?php _e( 'Use the first image in this collection as the post\'s featured image.', 'ry-annotorious' ); ?></label></p>
             <p class="description"><?php _e( 'Select images from the media library. Drag and drop to reorder. These will be used if "Default Viewer" mode is active.', 'ry-annotorious' ); ?></p>
             <ul class="ry-annotorious-image-list">
                 <?php if ( ! empty( $image_ids ) ) { foreach ( $image_ids as $image_id ) { $image_thumb_url = wp_get_attachment_image_url( $image_id, 'thumbnail' ); if ( $image_thumb_url ) { echo '<li data-id="' . esc_attr( $image_id ) . '"><img src="' . esc_url( $image_thumb_url ) . '" style="max-width:100px; max-height:100px; display:block;" /><a href="#" class="ry-annotorious-remove-image dashicons dashicons-trash" title="Remove image"></a></li>'; } } } ?>
             </ul>
             <p><a href="#" class="button button-secondary ry-annotorious-add-images-button"><?php _e( 'Add/Select Images', 'ry-annotorious' ); ?></a><input type="hidden" id="ry_annotorious_image_ids_field" name="_ry_annotorious_image_ids" value="<?php echo esc_attr( $image_ids_json ); ?>" /></p>
+            <p style="margin-bottom: 15px;"><label for="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>"><input type="checkbox" name="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" id="<?php echo esc_attr( self::META_SET_FIRST_AS_FEATURED ); ?>" value="yes" <?php checked( $set_as_featured, 'yes' ); ?> /> <?php _e( 'Use the first image in this collection as the post\'s featured image.', 'ry-annotorious' ); ?></label></p>
+
         </div>
         <style>#ry-annotorious-images-collection-container .ry-annotorious-image-list li { cursor: move; position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; } #ry-annotorious-images-collection-container .ry-annotorious-image-list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; } #ry-annotorious-images-collection-container .ry-annotorious-image-list li img { max-width: 100%; max-height: 100%; object-fit: contain; } #ry-annotorious-images-collection-container .ry-annotorious-remove-image { position: absolute; top: 0; right: 0; background: rgba(255,0,0,0.7); color: white; padding: 3px; cursor: pointer; line-height: 1; text-decoration: none; } .ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }</style>
         <?php
