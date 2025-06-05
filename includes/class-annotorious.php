@@ -8,7 +8,7 @@ class Annotorious {
     // Post Meta Key for display mode
     const META_POST_DISPLAY_MODE = '_ry_annotorious_post_display_mode';
     // Global Option Key for default new post mode
-    const OPTION_DEFAULT_NEW_POST_MODE = 'ry_annotorious_default_new_post_mode'; // New constant
+    const OPTION_DEFAULT_NEW_POST_MODE = 'ry_annotorious_default_new_post_mode';
 
     function __construct() {
         global $wpdb;
@@ -45,7 +45,7 @@ class Annotorious {
         add_action( 'wp_ajax_nopriv_get_annotorious_history', array( $this, 'get_annotorious_history' ) );
 
         // Content filter for frontend display
-        add_filter( 'the_content', array( $this , 'content_filter' ), 20 ); // Priority 20 to run after some other filters
+        add_filter( 'the_content', array( $this , 'content_filter' ), 20 );
 
         $this->filter_called = 0;
     }
@@ -56,14 +56,13 @@ class Annotorious {
     *************************************/
 
     public function ry_annotorious_settings_init() {
-        // Register the new global setting for default display mode
         register_setting(
-            'ry_annotorious_options_group',                     // Option group
-            self::OPTION_DEFAULT_NEW_POST_MODE,                 // Option name
-            array(                                              // Args
+            'ry_annotorious_options_group',
+            self::OPTION_DEFAULT_NEW_POST_MODE,
+            array(
                 'type'              => 'string',
                 'sanitize_callback' => array( $this, 'sanitize_display_mode_option' ),
-                'default'           => 'metabox_viewer', // Default value if option not yet saved
+                'default'           => 'metabox_viewer',
             )
         );
 
@@ -74,34 +73,30 @@ class Annotorious {
             'ry-annotorious-settings'
         );
 
-        // Add the settings field for the new default display mode
         add_settings_field(
-            'ry_annotorious_default_new_post_mode_field',         // ID
-            'Default Viewer Mode for New Posts/Pages',            // Title
-            array( $this, 'ry_annotorious_default_new_post_mode_callback' ), // Callback to render the field
-            'ry-annotorious-settings',                            // Page slug
-            'ry_annotorious_settings_section_main'                // Section ID
+            'ry_annotorious_default_new_post_mode_field',
+            'Default Viewer Mode for New Posts/Pages',
+            array( $this, 'ry_annotorious_default_new_post_mode_callback' ),
+            'ry-annotorious-settings',
+            'ry_annotorious_settings_section_main'
         );
     }
 
-    // NEW: Sanitize callback for the display mode option
     public function sanitize_display_mode_option( $input ) {
         $valid_options = array( 'metabox_viewer', 'gutenberg_block' );
         if ( in_array( $input, $valid_options, true ) ) {
             return $input;
         }
-        return 'metabox_viewer'; // Fallback to a safe default
+        return 'metabox_viewer';
     }
 
 
     public function ry_annotorious_settings_section_main_callback() {
-        // UPDATED: Message to reflect new global setting
         echo '<p>Configure global settings for the RY Annotorious plugin. The primary display choice (Default Viewer vs. Gutenberg Block) for individual posts/pages is managed on its edit screen. Below, you can set the <strong>default mode for newly created posts/pages</strong>.</p>';
     }
 
-    // NEW: Callback function to render the radio buttons for the default display mode setting
     public function ry_annotorious_default_new_post_mode_callback() {
-        $option_value = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' ); // Default to 'metabox_viewer' if not set
+        $option_value = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         ?>
         <fieldset>
             <legend class="screen-reader-text"><span><?php _e( 'Default Viewer Mode for New Posts/Pages', 'ry-annotorious' ); ?></span></legend>
@@ -142,7 +137,7 @@ class Annotorious {
                 <?php
                 settings_fields( 'ry_annotorious_options_group' );
                 do_settings_sections( 'ry-annotorious-settings' );
-                submit_button( 'Save Settings' ); // UPDATED: Ensure submit button is present and clear
+                submit_button( 'Save Settings' );
                 ?>
             </form>
         </div>
@@ -164,10 +159,8 @@ class Annotorious {
             return;
         }
 
-        // Get the display mode for THIS post
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
         if ( empty( $post_display_mode ) ) {
-            // UPDATED: Fallback to global option, then to hardcoded 'metabox_viewer'
             $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
 
@@ -194,7 +187,6 @@ class Annotorious {
             if ( !empty( $image_sources ) ) {
                 wp_register_style( 'ry-annotorious-css', RY_ANNOTORIOUS_URL . 'assets/css/annotorious/annotorious.min.css');
                 wp_enqueue_style( 'ry-annotorious-css' );
-                // ... (rest of your script enqueueing logic) ...
                 wp_register_script( 'ry-annotorious-core-js', RY_ANNOTORIOUS_URL . 'assets/js/annotorious/annotorious.min.js', array(), '2.7.0', true );
                 wp_enqueue_script( 'ry-annotorious-core-js' );
 
@@ -229,9 +221,16 @@ class Annotorious {
     function load_admin_scripts($hook_suffix) {
         // Only load on post edit screens
         if (in_array($hook_suffix, array('post.php', 'post-new.php'))) {
-            wp_register_script('admin-js', RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js', array('jquery'),'1.12', true);
+            // MODIFIED: Add 'jquery-ui-sortable' as a dependency
+            wp_register_script('admin-js', RY_ANNOTORIOUS_URL . 'assets/js/admin/admin.js', array('jquery', 'jquery-ui-sortable'),'1.13', true); // Increment version
             wp_enqueue_script('admin-js');
             wp_enqueue_media(); // For the image uploader in the metabox
+
+            // Optionally, you can add a small CSS for the sortable placeholder directly here
+            // or include it in a separate admin CSS file.
+            $custom_css = ".ry-annotorious-image-list li { cursor: move; }";
+            $custom_css .= ".ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }";
+            wp_add_inline_style( 'wp-admin', $custom_css ); // Add to a common admin handle or your own admin CSS handle
         }
     }
 
@@ -251,7 +250,6 @@ class Annotorious {
 
         $post_display_mode = get_post_meta( $current_post_id, self::META_POST_DISPLAY_MODE, true );
         if ( empty( $post_display_mode ) ) {
-            // UPDATED: Fallback to global option, then to hardcoded 'metabox_viewer'
             $post_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
 
@@ -277,6 +275,7 @@ class Annotorious {
 
 
 
+/************** METABOX ************************************************/
     /*************************************
     * --- Metabox Functions ---
     *************************************/
@@ -284,7 +283,7 @@ class Annotorious {
     function ry_annotorious_add_all_metaboxes() {
         add_meta_box(
             'ry-annotorious-display-mode-metabox',
-            __( 'Openseadragon Viewer', 'ry-annotorious' ),
+            __( 'Viewer Mode', 'ry-annotorious' ),
             array( $this, 'render_ry_annotorious_display_mode_metabox' ),
             array( 'post', 'page' ),
             'side',
@@ -293,7 +292,7 @@ class Annotorious {
 
         add_meta_box(
             'ry-annotorious-image-collection-metabox',
-            __( 'Openseadragon Image Collection', 'ry-annotorious' ),
+            __( 'Openseadragon Image Collection (sortable)', 'ry-annotorious' ), // MODIFIED: Title to indicate sortable
             array( $this, 'render_ry_annotorious_image_collection_metabox' ),
             array( 'post', 'page' ),
             'normal',
@@ -302,12 +301,9 @@ class Annotorious {
     }
 
     function render_ry_annotorious_display_mode_metabox( $post ) {
-        // Get saved display mode for this post
         $current_display_mode = get_post_meta( $post->ID, self::META_POST_DISPLAY_MODE, true );
 
-        // If no mode is set for this specific post (e.g., it's a new post), use the global default
         if ( empty( $current_display_mode ) ) {
-            // UPDATED: Use global default for new/unset posts
             $current_display_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
         }
         ?>
@@ -318,7 +314,7 @@ class Annotorious {
                     <?php _e( 'Default Viewer', 'ry-annotorious' ); ?>
                 </label>
                 <br />
-                <small class="description"><?php _e( 'Viewer automatically loaded', 'ry-annotorious' ); ?></small>
+                <small class="description"><?php _e( 'Automatic viewer loaded', 'ry-annotorious' ); ?></small>
             </p>
             <p>
                 <label>
@@ -343,7 +339,7 @@ class Annotorious {
         ?>
         <div id="ry-annotorious-images-collection-container">
             <p class="description">
-                <?php _e( 'Select images from the media library. These will be used if "Default Viewer" mode is active (selected in the sidebar).', 'ry-annotorious' ); ?>
+                <?php _e( 'Select images from the media library. Drag and drop to reorder. These will be used if "Default Viewer" mode is active.', 'ry-annotorious' ); ?>
             </p>
             <ul class="ry-annotorious-image-list">
                 <?php
@@ -351,7 +347,7 @@ class Annotorious {
                     foreach ( $image_ids as $image_id ) {
                         $image_thumb_url = wp_get_attachment_image_url( $image_id, 'thumbnail' );
                         if ( $image_thumb_url ) {
-                            echo '<li data-id="' . esc_attr( $image_id ) . '">';
+                            echo '<li data-id="' . esc_attr( $image_id ) . '">'; // data-id is crucial
                             echo '<img src="' . esc_url( $image_thumb_url ) . '" style="max-width:100px; max-height:100px; display:block;" />';
                             echo '<a href="#" class="ry-annotorious-remove-image dashicons dashicons-trash" title="Remove image"></a>';
                             echo '</li>';
@@ -368,10 +364,14 @@ class Annotorious {
             </p>
         </div>
         <style>
+            /* Styles can remain largely the same, or be moved to a separate admin CSS file */
+            /* MODIFIED: Added cursor: move for draggable items */
+            #ry-annotorious-images-collection-container .ry-annotorious-image-list li { cursor: move; position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
-            #ry-annotorious-images-collection-container .ry-annotorious-image-list li { position: relative; width: 100px; height: 100px; margin: 5px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; overflow: hidden; }
             #ry-annotorious-images-collection-container .ry-annotorious-image-list li img { max-width: 100%; max-height: 100%; object-fit: contain; }
             #ry-annotorious-images-collection-container .ry-annotorious-remove-image { position: absolute; top: 0; right: 0; background: rgba(255,0,0,0.7); color: white; padding: 3px; cursor: pointer; line-height: 1; text-decoration: none; }
+            /* Placeholder style can also be added here or in load_admin_scripts' inline style */
+            .ry-annotorious-image-placeholder { background-color: #f0f0f0; border: 1px dashed #ccc; height: 100px; width: 100px; margin: 5px; list-style-type: none; }
         </style>
         <?php
     }
@@ -388,7 +388,6 @@ class Annotorious {
             return $post_id;
         }
 
-        // UPDATED: Save Display Mode logic
         $existing_display_mode = get_post_meta( $post_id, self::META_POST_DISPLAY_MODE, true );
 
         if ( isset( $_POST[self::META_POST_DISPLAY_MODE] ) ) {
@@ -396,44 +395,43 @@ class Annotorious {
             if ( in_array( $display_mode, array( 'metabox_viewer', 'gutenberg_block' ) ) ) {
                 update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $display_mode );
             } else {
-                // If somehow an invalid value is submitted, fall back to global default or existing.
                 $fallback_mode = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
                 update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $existing_display_mode ? $existing_display_mode : $fallback_mode );
             }
         } else {
-            // Field not submitted. Only set a default if it's a new post (no meta value yet).
             if ( empty( $existing_display_mode ) && !wp_is_post_revision($post_id) && !wp_is_post_autosave($post_id) ) {
-                // This ensures that new posts get the global default if no choice is made.
-                // It also applies if the meta was somehow deleted.
                 $global_default = get_option( self::OPTION_DEFAULT_NEW_POST_MODE, 'metabox_viewer' );
                 update_post_meta( $post_id, self::META_POST_DISPLAY_MODE, $global_default );
             }
-            // If $existing_display_mode is not empty and the field wasn't submitted,
-            // it means we keep the existing value, so no action needed here.
         }
 
-
+        // The image IDs are saved from the hidden field, which will be updated by JavaScript
+        // No changes needed here for the reordering itself, as JS handles the hidden input value.
         if ( isset( $_POST['_ry_annotorious_image_ids'] ) ) {
             $image_ids_json = wp_unslash( $_POST['_ry_annotorious_image_ids'] );
+            // Validate if it's actually a JSON string of an array of integers.
             $image_ids = json_decode( $image_ids_json, true );
 
             if ( is_array( $image_ids ) ) {
-                $sanitized_image_ids = array_map( 'intval', $image_ids );
-                update_post_meta( $post_id, '_ry_annotorious_image_ids', json_encode( $sanitized_image_ids ) );
+                $sanitized_image_ids = array_map( 'intval', $image_ids ); // Ensure all IDs are integers
+                // Optional: Further filter out non-positive IDs if necessary
+                // $sanitized_image_ids = array_filter($sanitized_image_ids, function($id) { return $id > 0; });
+                update_post_meta( $post_id, '_ry_annotorious_image_ids', json_encode( array_values($sanitized_image_ids) ) ); // Re-index array
             } else {
+                 // If it's not a valid array (e.g., empty string after all images removed, or corrupted data)
                  delete_post_meta( $post_id, '_ry_annotorious_image_ids' );
             }
         } else {
             delete_post_meta( $post_id, '_ry_annotorious_image_ids' );
         }
     }
-
+/************** AJAX ************************************************/
 
     /*************************************
-    * ajax get annotations
+    * AJAX GET annotations
     *************************************/
     function anno_get() {
-        global $wpdb; // Make $wpdb accessible
+        global $wpdb;
         $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
 
         if (empty($attachment_id)) {
@@ -442,10 +440,7 @@ class Annotorious {
         }
 
         header('Content-Type: application/json');
-
         $all_annotations = [];
-
-        // Retrieve annotations from the custom table for the specific attachment_id
         $results = $wpdb->get_results(
             $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE attachment_id = %d", $attachment_id ),
             ARRAY_A
@@ -459,7 +454,6 @@ class Annotorious {
                 }
             }
         }
-
         echo wp_json_encode($all_annotations);
         wp_die();
     }
@@ -467,9 +461,9 @@ class Annotorious {
 
 
     /*************************************
-    * ajax add annotation (MODIFIED for history)
+    * AJAX ADD annotation (MODIFIED to record edit history on second table)
     *************************************/
-    function anno_add() {
+        function anno_add() {
         global $wpdb;
         $annotation_json = isset($_POST['annotation']) ? wp_unslash($_POST['annotation']) : '';
 
@@ -477,59 +471,44 @@ class Annotorious {
             echo wp_json_encode(array('success' => false, 'message' => 'Annotation data missing.'));
             wp_die();
         }
-
         $annotation = json_decode($annotation_json, true);
-
         if (json_last_error() !== JSON_ERROR_NONE) {
             echo wp_json_encode(array('success' => false, 'message' => 'Invalid JSON data.', 'error_code' => json_last_error_msg()));
             wp_die();
         }
-
         $image_url = '';
         if (isset($annotation['target']['source'])) {
             $image_url = $annotation['target']['source'];
         }
-
         if (empty($image_url)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Annotation target source URL missing.'));
             wp_die();
         }
-
         $attachment_id = attachment_url_to_postid($image_url);
-
         if (empty($attachment_id)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Could not find attachment ID for source URL: ' . $image_url));
             wp_die();
         }
-
         $annotation_id_from_annotorious = isset($annotation['id']) ? sanitize_text_field($annotation['id']) : '';
-
         if (empty($annotation_id_from_annotorious)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Annotorious ID (UUID) missing from annotation data.'));
             wp_die();
         }
-
-        // Sanitize annotation body content
         if (isset($annotation['body'][0]['value'])) {
             $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']);
         }
-
-        // --- LOG 'CREATED' ACTION TO HISTORY TABLE ---
-        $current_user_id = get_current_user_id(); // Get current user ID (0 if not logged in)
-
+        $current_user_id = get_current_user_id();
         $logged_history = $wpdb->insert(
             $this->history_table_name,
             array(
                 'annotation_id_from_annotorious' => $annotation_id_from_annotorious,
                 'attachment_id'                  => $attachment_id,
                 'action_type'                    => 'created',
-                'annotation_data_snapshot'       => wp_json_encode($annotation), // Store the full new annotation
+                'annotation_data_snapshot'       => wp_json_encode($annotation),
                 'user_id'                        => $current_user_id,
             ),
             array( '%s', '%d', '%s', '%s', '%d' )
         );
-        // --- END HISTORY LOGGING ---
-
         $inserted = $wpdb->insert(
             $this->table_name,
             array(
@@ -539,18 +518,16 @@ class Annotorious {
             ),
             array( '%s', '%d', '%s' )
         );
-
         if ($inserted !== false) {
             echo wp_json_encode(array('success' => true, 'message' => 'Annotation added successfully.', 'database_id' => $wpdb->insert_id, 'history_logged' => (bool)$logged_history));
         } else {
-            // If main insert fails, consider logging an error or rolling back history insert if it was successful.
             echo wp_json_encode(array('success' => false, 'message' => 'Failed to add annotation to custom table.', 'wpdb_error' => $wpdb->last_error));
         }
         wp_die();
     }
 
     /************************************
-    * ajax delete annotation (MODIFIED for history)
+    * AJAX DELETE annotation (MODIFIED to record edit history on second tabley)
     ************************************/
     function anno_delete() {
         global $wpdb;
@@ -561,33 +538,25 @@ class Annotorious {
             echo wp_json_encode(array('success' => false, 'message' => 'Missing annotationid or annotation data.'));
             wp_die();
         }
-
         $annotation = json_decode($annotation_json, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             echo wp_json_encode(array('success' => false, 'message' => 'Invalid JSON data (delete).', 'error_code' => json_last_error_msg()));
             wp_die();
         }
-
         $image_url = '';
         if (isset($annotation['target']['source'])) {
             $image_url = $annotation['target']['source'];
         }
         $attachment_id = attachment_url_to_postid($image_url);
-
         if (empty($attachment_id)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Could not find attachment ID for source URL (delete): ' . $image_url));
             wp_die();
         }
-
-        // --- LOG 'DELETED' ACTION TO HISTORY TABLE ---
         $current_user_id = get_current_user_id();
-
-        // Retrieve the annotation data BEFORE deletion to save its snapshot in history
         $existing_annotation_row = $wpdb->get_row(
             $wpdb->prepare( "SELECT annotation_data FROM {$this->table_name} WHERE annotation_id_from_annotorious = %s AND attachment_id = %d", $annoid, $attachment_id ),
             ARRAY_A
         );
-
         $logged_history = false;
         if ( ! empty( $existing_annotation_row ) ) {
             $logged_history = $wpdb->insert(
@@ -596,14 +565,12 @@ class Annotorious {
                     'annotation_id_from_annotorious' => $annoid,
                     'attachment_id'                  => $attachment_id,
                     'action_type'                    => 'deleted',
-                    'annotation_data_snapshot'       => $existing_annotation_row['annotation_data'], // Snapshot of what was deleted
+                    'annotation_data_snapshot'       => $existing_annotation_row['annotation_data'],
                     'user_id'                        => $current_user_id,
                 ),
                 array( '%s', '%d', '%s', '%s', '%d' )
             );
         }
-        // --- END HISTORY LOGGING ---
-
         $deleted = $wpdb->delete(
             $this->table_name,
             array(
@@ -612,7 +579,6 @@ class Annotorious {
             ),
             array( '%s', '%d' )
         );
-
         if ($deleted === false) {
             echo wp_json_encode(array('success' => false, 'message' => 'Failed to delete annotation from custom table.', 'wpdb_error' => $wpdb->last_error));
         } elseif ($deleted === 0) {
@@ -624,7 +590,7 @@ class Annotorious {
     }
 
     /************************************
-    * ajax update annotation (MODIFIED for history)
+    * AJAX UPDATE annotation (MODIFIED to record edit history on second table)
     ************************************/
     function anno_update() {
         global $wpdb;
@@ -635,66 +601,48 @@ class Annotorious {
             echo wp_json_encode(array('success' => false, 'message' => 'Missing annotationid or annotation data.'));
             wp_die();
         }
-
         $annotation = json_decode($annotation_json, true);
-
         if (json_last_error() !== JSON_ERROR_NONE) {
             echo wp_json_encode(array('success' => false, 'message' => 'Invalid JSON data (update).', 'error_code' => json_last_error_msg()));
             wp_die();
         }
-
         $image_url = '';
         if (isset($annotation['target']['source'])) {
             $image_url = $annotation['target']['source'];
         }
         $attachment_id = attachment_url_to_postid($image_url);
-
         if (empty($attachment_id)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Could not find attachment ID for source URL (update): ' . $image_url));
             wp_die();
         }
-
-        // Sanitize annotation body content
         if (isset($annotation['body'][0]['value'])) {
             $annotation['body'][0]['value'] = wp_kses_post($annotation['body'][0]['value']);
         }
-
         $updated = $wpdb->update(
             $this->table_name,
-            array(
-                'annotation_data' => wp_json_encode($annotation), // Store the updated JSON object
-            ),
-            array(
-                'annotation_id_from_annotorious' => $annoid,
-                'attachment_id' => $attachment_id
-            ),
+            array( 'annotation_data' => wp_json_encode($annotation) ),
+            array( 'annotation_id_from_annotorious' => $annoid, 'attachment_id' => $attachment_id ),
             array( '%s' ),
             array( '%s', '%d' )
         );
-
-        // --- LOG 'UPDATED' ACTION TO HISTORY TABLE ---
         $current_user_id = get_current_user_id();
         $logged_history = false;
-        // Log history only if the update actually occurred (row found and changed or row found and no change but it implies existence)
-        if ($updated !== false) { // If update query didn't fail
+        if ($updated !== false) {
             $logged_history = $wpdb->insert(
                 $this->history_table_name,
                 array(
                     'annotation_id_from_annotorious' => $annoid,
                     'attachment_id'                  => $attachment_id,
                     'action_type'                    => 'updated',
-                    'annotation_data_snapshot'       => wp_json_encode($annotation), // Store the full updated annotation
+                    'annotation_data_snapshot'       => wp_json_encode($annotation),
                     'user_id'                        => $current_user_id,
                 ),
                 array( '%s', '%d', '%s', '%s', '%d' )
             );
         }
-        // --- END HISTORY LOGGING ---
-
         if ($updated === false) {
             echo wp_json_encode(array('success' => false, 'message' => 'Failed to update annotation in custom table.', 'wpdb_error' => $wpdb->last_error));
         } elseif ($updated === 0) {
-            // Updated can be 0 if the data was identical or if the record was not found
             echo wp_json_encode(array('success' => false, 'message' => 'Annotation not found or no changes made (ID: ' . $annoid . ').', 'history_logged' => (bool)$logged_history));
         } else {
             echo wp_json_encode(array('success' => true, 'message' => 'Annotation updated successfully.', 'history_logged' => (bool)$logged_history));
@@ -702,21 +650,20 @@ class Annotorious {
         wp_die();
     }
 
+
     /************************************
-    * NEW: ajax get annotation history
+    * AJAX GET annotation history
     ************************************/
     function get_annotorious_history() {
         global $wpdb;
         $attachment_id = isset($_GET['attachment_id']) ? intval($_GET['attachment_id']) : 0;
-        $annotation_id = isset($_GET['annotation_id']) ? sanitize_text_field($_GET['annotation_id']) : ''; // Optional: for specific annotation history
+        $annotation_id = isset($_GET['annotation_id']) ? sanitize_text_field($_GET['annotation_id']) : '';
 
         if (empty($attachment_id) && empty($annotation_id)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Missing attachment_id or annotation_id.'));
             wp_die();
         }
-
         header('Content-Type: application/json');
-
         $history_records = [];
         $query_params = [];
         $where_clauses = [];
@@ -725,20 +672,16 @@ class Annotorious {
             $where_clauses[] = 'attachment_id = %d';
             $query_params[] = $attachment_id;
         }
-
         if ( ! empty( $annotation_id ) ) {
             $where_clauses[] = 'annotation_id_from_annotorious = %s';
             $query_params[] = $annotation_id;
         }
-
         $where_sql = implode( ' AND ', $where_clauses );
 
-        if (empty($where_sql)) { // Should not happen with above checks, but as a fallback
+        if (empty($where_sql)) {
             echo wp_json_encode(array('success' => false, 'message' => 'Invalid query parameters.'));
             wp_die();
         }
-
-        // Fetch history records, ordered by timestamp
         $sql = "SELECT id, annotation_id_from_annotorious, attachment_id, action_type, annotation_data_snapshot, user_id, action_timestamp FROM {$this->history_table_name} WHERE {$where_sql} ORDER BY action_timestamp DESC";
         $results = $wpdb->get_results(
             $wpdb->prepare( $sql, $query_params ),
@@ -747,10 +690,8 @@ class Annotorious {
 
         if ( ! empty( $results ) ) {
             foreach ( $results as $row ) {
-                // Get user info for display
                 $user_info = get_userdata( $row['user_id'] );
                 $username = $user_info ? $user_info->display_name : 'Guest/Unknown';
-
                 $history_records[] = [
                     'id'               => (int) $row['id'],
                     'annotationId'     => $row['annotation_id_from_annotorious'],
@@ -763,8 +704,9 @@ class Annotorious {
                 ];
             }
         }
-
         echo wp_json_encode(array('success' => true, 'history' => $history_records));
         wp_die();
     }
+
 }
+
