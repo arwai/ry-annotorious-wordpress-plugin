@@ -95,7 +95,7 @@ jQuery(document).ready(function($) {
                 var attachment = attachment_obj.toJSON(); // Get all attributes
                 var id = parseInt(attachment.id, 10); // Ensure ID is a number
 
-                // MODIFIED: Prefer thumbnail URL for the preview
+                // Prefer thumbnail URL for the preview
                 var thumbnailUrl = attachment.sizes && attachment.sizes.thumbnail ? attachment.sizes.thumbnail.url : attachment.url;
 
                 // Check if ID already exists in current_ids array (parsed from hidden field)

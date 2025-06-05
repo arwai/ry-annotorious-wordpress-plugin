@@ -13,6 +13,9 @@ class Annotorious {
     const META_SET_FIRST_AS_FEATURED = '_ry_annotorious_set_first_as_featured';
     // Option key to store active post types
     const OPTION_ACTIVE_POST_TYPES = 'ry_annotorious_active_post_types';
+    // OSD configuration options
+    const OPTION_OSD_CONFIG = 'ry_annotorious_osd_config';
+
 
     function __construct() {
         global $wpdb;
@@ -51,18 +54,45 @@ class Annotorious {
      */
     
      
-
     private function get_active_post_types() {
         // Default to 'post' and 'page' if the option isn't set or is empty
         $active_types = get_option( self::OPTION_ACTIVE_POST_TYPES, array( 'post', 'page' ) );
         return !empty($active_types) ? $active_types : array( 'post', 'page' );
     }
 
+    private function get_default_osd_options_array() {
+        return array(
+            'prefixUrl' => 'https://openseadragon.github.io/openseadragon/images/',
+            'sequenceMode' => true,
+            'showSequenceControl' => true,
+            'showReferenceStrip' => true,
+            'gestureSettingsMouse' => array(
+                'clickToZoom' => false,
+                'dblClickToZoom' => true,
+                'pinchToZoom' => true,
+                'scrollToZoom' => true,
+                'flickEnabled' => true
+            ),
+            'showRotationControl' => true,
+            'navPrevNextWrap' => true,
+            'autoResize' => false, // As per your example
+            'visibilityRatio' => 1.0, // Use float for consistency
+            'minZoomLevel' => 1.0,    // Use float
+            'maxZoomLevel' => 5.0,    // Use float
+            'defaultZoomLevel' => 1.0 // Use float
+        );
+    }
+
+private function get_default_osd_options_json() {
+    return json_encode( $this->get_default_osd_options_array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+}
+
     /*************************************
     * --- Settings API Functions ---
     *************************************/
 
     public function ry_annotorious_settings_init() {
+
         // Setting for default viewer mode for new posts
         register_setting(
             'ry_annotorious_options_group',
@@ -74,7 +104,7 @@ class Annotorious {
             )
         );
 
-        // NEW: Setting for active post types
+        // Setting for active post types
         register_setting(
             'ry_annotorious_options_group',                     // Option group
             self::OPTION_ACTIVE_POST_TYPES,                     // Option name
@@ -85,6 +115,18 @@ class Annotorious {
             )
         );
 
+        // Register setting for OpenSeadragon configurations
+        register_setting(
+            'ry_annotorious_options_group',
+            self::OPTION_OSD_CONFIG, // The new option key
+            array(
+                'type'              => 'string', // We'll store the JSON as a string
+                'sanitize_callback' => array( $this, 'sanitize_osd_config_json_string' ),
+                'default'           => $this->get_default_osd_options_json(), // Default value
+            )
+        );
+
+        // Register the settings section
         add_settings_section(
             'ry_annotorious_settings_section_main',
             'Openseadragon with Annotorious Global Settings',
@@ -92,6 +134,7 @@ class Annotorious {
             'ry-annotorious-settings'
         );
 
+        // Settings field for default viewer mode for new posts/pages
         add_settings_field(
             'ry_annotorious_default_new_post_mode_field',
             'Default Viewer Mode for New Posts/Pages',
@@ -100,13 +143,22 @@ class Annotorious {
             'ry_annotorious_settings_section_main'
         );
 
-        // NEW: Settings field for selecting active post types
+        // Settings field for selecting active post types
         add_settings_field(
             'ry_annotorious_active_post_types_field',       // ID
             'Activate Plugin for Post Types',               // Title
             array( $this, 'ry_annotorious_active_post_types_callback' ), // Callback to render the field
             'ry-annotorious-settings',                      // Page slug
             'ry_annotorious_settings_section_main'          // Section ID
+        );
+
+        // Settings field for OpenSeadragon configurations
+        add_settings_field(
+            'ry_annotorious_osd_config_field',          // ID
+            'OpenSeadragon Viewer Configuration',       // Title
+            array( $this, 'ry_annotorious_osd_config_callback' ), // Callback to render the field
+            'ry-annotorious-settings',                  // Page slug
+            'ry_annotorious_settings_section_main'      // Section ID
         );
     }
 
@@ -118,7 +170,7 @@ class Annotorious {
         return 'metabox_viewer';
     }
 
-    // NEW: Sanitize callback for the active post types option
+    // Sanitize callback for the active post types option
     public function sanitize_active_post_types_option( $input ) {
         $sanitized_input = array();
         if ( is_array( $input ) ) {
@@ -224,6 +276,91 @@ class Annotorious {
         <?php
     }
 
+    // Sanitize callback for the OSD config JSON string
+    public function sanitize_osd_config_json_string( $input_json_string ) {
+        $trimmed_input = trim( $input_json_string );
+        if ( empty( $trimmed_input ) ) {
+            // If empty, return the default JSON configuration
+            return $this->get_default_osd_options_json();
+        }
+
+        $decoded_input = json_decode( $trimmed_input, true );
+
+        // Check if JSON is valid
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            // If JSON is invalid, add a settings error and return the previous valid value or default
+            add_settings_error(
+                self::OPTION_OSD_CONFIG,
+                'osd_config_invalid_json',
+                __( 'The OpenSeadragon configuration was not valid JSON. Please check the syntax. Reverted to previous or default settings.', 'ry-annotorious' ),
+                'error'
+            );
+            // Return the existing option to prevent saving malformed JSON
+            return get_option(self::OPTION_OSD_CONFIG, $this->get_default_osd_options_json());
+        }
+
+        // At this point, $decoded_input is a valid PHP array.
+        // You could add more specific validation/sanitization for each expected key here.
+        // For example, ensuring boolean values are true/false, numbers are numeric, URLs are URLs.
+        // For simplicity, we are trusting the structure if JSON is valid. A more robust approach
+        // would be to merge with defaults and sanitize individual fields.
+
+        // Example: Ensure core numeric values are indeed numeric or default
+        $defaults = $this->get_default_osd_options_array();
+        $sanitized_array = array();
+
+        foreach ($defaults as $key => $defaultValue) {
+            if (isset($decoded_input[$key])) {
+                if (is_numeric($defaultValue)) {
+                    $sanitized_array[$key] = is_numeric($decoded_input[$key]) ? (strpos((string)$decoded_input[$key], '.') === false ? (int)$decoded_input[$key] : (float)$decoded_input[$key]) : $defaultValue;
+                } elseif (is_bool($defaultValue)) {
+                    $sanitized_array[$key] = filter_var($decoded_input[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $defaultValue;
+                } elseif (is_string($defaultValue)) {
+                    $sanitized_array[$key] = ($key === 'prefixUrl') ? esc_url_raw(trim($decoded_input[$key])) : sanitize_text_field(trim($decoded_input[$key]));
+                } elseif (is_array($defaultValue) && $key === 'gestureSettingsMouse') {
+                    $sanitized_array[$key] = array();
+                    foreach($defaultValue as $gKey => $gDefaultValue){
+                        $sanitized_array[$key][$gKey] = isset($decoded_input[$key][$gKey]) ? filter_var($decoded_input[$key][$gKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $gDefaultValue : $gDefaultValue;
+                    }
+                } else {
+                    $sanitized_array[$key] = $decoded_input[$key]; // Fallback for unknown structures
+                }
+            } else {
+                $sanitized_array[$key] = $defaultValue; // Key not present, use default
+            }
+        }
+
+
+        // Re-encode the sanitized array to JSON to store as a string
+        return json_encode( $sanitized_array, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+    }
+
+    // Callback function to render the textarea for OSD configurations
+    public function ry_annotorious_osd_config_callback() {
+        $osd_config_json = get_option( self::OPTION_OSD_CONFIG, $this->get_default_osd_options_json() );
+        // Ensure it's a string for the textarea
+        if ( !is_string( $osd_config_json ) || json_decode($osd_config_json) === null ) {
+            $osd_config_json = $this->get_default_osd_options_json();
+        }
+        ?>
+        <textarea name="<?php echo esc_attr( self::OPTION_OSD_CONFIG ); ?>"
+                id="<?php echo esc_attr( self::OPTION_OSD_CONFIG ); ?>"
+                rows="18"
+                cols="70"
+                class="large-text code"><?php echo esc_textarea( $osd_config_json ); ?></textarea>
+        <p class="description">
+            <?php _e( 'Enter your OpenSeadragon configuration options as a valid JSON object. The <code>id</code> and <code>tileSources</code> options are automatically handled by the plugin and should not be included here.', 'ry-annotorious' ); ?>
+            <br>
+            <?php printf(
+                /* translators: %s: Link to OpenSeadragon documentation */
+                wp_kses_post( __( 'Refer to the <a href="%s" target="_blank" rel="noopener noreferrer">OpenSeadragon documentation</a> for all available options.', 'ry-annotorious' ) ),
+                'https://openseadragon.github.io/docs/OpenSeadragon.html#.Options'
+            ); ?>
+        </p>
+        <p><strong><?php _e('Default configuration for reference:', 'ry-annotorious'); ?></strong></p>
+        <pre style="background-color: #f9f9f9; border: 1px solid #ccc; padding: 10px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; max-width: 70ch;"><code><?php echo esc_html($this->get_default_osd_options_json()); ?></code></pre>
+        <?php
+    }
 
     /*************************************
     * --- Script & Style Loading Functions ---
@@ -297,6 +434,24 @@ class Annotorious {
                 wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousVars', $data );
             }
         }
+
+        // Get OSD configurations from settings
+        $osd_config_json_string = get_option( self::OPTION_OSD_CONFIG, $this->get_default_osd_options_json() );
+        $osd_options_from_db = json_decode( $osd_config_json_string, true );
+
+        // Fallback if JSON is invalid or option is empty
+        if ( !is_array( $osd_options_from_db ) || json_last_error() !== JSON_ERROR_NONE ) {
+            $osd_options_from_db = $this->get_default_osd_options_array();
+        }
+
+        $viewer_config = [ // Your existing $viewer_config array
+            'id'            => $viewer_id, // Assuming $viewer_id is defined
+            'images'        => $image_sources, // Assuming $image_sources is defined
+            'currentPostId' => $current_post_id, // Assuming $current_post_id is defined
+            'osdOptions'    => $osd_options_from_db, // Add the OSD options here
+        ];
+        wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousViewerConfig', $viewer_config );
+
     }
 
 
