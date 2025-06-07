@@ -24,9 +24,15 @@ jQuery(document).ready(function($) {
         }
         const ajaxUrl = AnnotoriousVars.ajax_url;
 
-        // NEW: Get custom OSD options from WordPress settings, default to an empty object if not present
+        // Get custom OSD options from WordPress settings, default to an empty object if not present
         const customOsdOptions = AnnotoriousViewerConfig.osdOptions || {};
         console.log("Custom OSD Options from WP Settings:", customOsdOptions);
+
+        // Get custom Annotorious options from WordPress settings. Ensure it's an object, default to empty object if not present or not an object
+        const customAnnoOptions = (typeof AnnotoriousViewerConfig.annoOptions === 'object' && AnnotoriousViewerConfig.annoOptions !== null) 
+                                  ? AnnotoriousViewerConfig.annoOptions 
+                                  : {}; 
+        console.log("Custom Annotorious Options from WP Settings:", customAnnoOptions);
 
 
         console.log("Viewer ID:", viewerId);
@@ -103,9 +109,24 @@ jQuery(document).ready(function($) {
             console.log("OpenSeadragon.Annotorious plugin detected.");
         }
 
-        // Initialize Annotorious on the OpenSeadragon viewer (Annotorious v2 initialization)
-        const anno = OpenSeadragon.Annotorious(osdViewer); // V2 init
-        console.log("Annotorious initialized on OpenSeadragon (v2).");
+        // MODIFIED: Initialize Annotorious with the customAnnoOptions
+        let anno; 
+        try {
+            // Pass the customAnnoOptions (which is an object) to the initializer
+            anno = OpenSeadragon.Annotorious(osdViewer, customAnnoOptions); 
+            console.log("Annotorious initialized on OpenSeadragon (v2) with options:", customAnnoOptions);
+        } catch (e) {
+            console.error("Error initializing Annotorious with the provided options:", e);
+            if (osdContainer) {
+                let errorMsg = `<p style="color:red; padding:10px;">Error initializing Annotorious. Details: ${e.message}</p>`;
+                osdContainer.innerHTML = osdContainer.innerHTML.includes('Error:') ? osdContainer.innerHTML + errorMsg : errorMsg;
+            }
+            return; // Stop if Annotorious fails
+        }
+
+        // // Initialize Annotorious on the OpenSeadragon viewer (Annotorious v2 initialization)
+        // const anno = OpenSeadragon.Annotorious(osdViewer); // V2 init
+        // console.log("Annotorious initialized on OpenSeadragon (v2).");
 
         // --- Function to load annotations via AJAX ---
         function loadAnnotationsFromBackend(attachmentId) {

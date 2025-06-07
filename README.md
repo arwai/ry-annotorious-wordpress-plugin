@@ -31,9 +31,10 @@ Planned Features:
     3.  Move Openseadragon options onto admin page?
     4.  Link button to open up an Openseadragon viewer with the images that are loaded on the page?
     5.  Gallery view for the loaded images instead of default Openseadragon viewer?
-    6.  Link tags or categories on annotorious to wordpress categories.
-    7.  Add "creator" to annotations
-    8.  Add Annotorious config to admin page
+    6.  Map tags or categories on annotorious to wordpress categories? separate custom table?
+    7.  Add "creator" to annotations, map to wp-user?
+    8.  Add Annotorious config to admin page.
+    9.  clean up admin-settings page.
 
 
 Known Issues:

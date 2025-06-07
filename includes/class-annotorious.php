@@ -15,6 +15,9 @@ class Annotorious {
     const OPTION_ACTIVE_POST_TYPES = 'ry_annotorious_active_post_types';
     // OSD configuration options
     const OPTION_OSD_CONFIG = 'ry_annotorious_osd_config';
+    // Annotorious configuration options
+
+    const OPTION_ANNO_CONFIG = 'ry_annotorious_anno_config';
 
 
     function __construct() {
@@ -60,6 +63,7 @@ class Annotorious {
         return !empty($active_types) ? $active_types : array( 'post', 'page' );
     }
 
+    // OSD default config
     private function get_default_osd_options_array() {
         return array(
             'prefixUrl' => 'https://openseadragon.github.io/openseadragon/images/',
@@ -85,6 +89,17 @@ class Annotorious {
 
 private function get_default_osd_options_json() {
     return json_encode( $this->get_default_osd_options_array(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+}
+
+//Annotorious Config Default
+private function get_default_anno_options_array() {
+    // Default is an empty configuration object for Annotorious
+    return array(); 
+}
+
+private function get_default_anno_options_json() {
+    // Ensure it's an empty JSON object '{}', not an empty array '[]'
+    return json_encode( (object)$this->get_default_anno_options_array() );
 }
 
     /*************************************
@@ -126,6 +141,17 @@ private function get_default_osd_options_json() {
             )
         );
 
+        // Register setting for Annotorious configurations
+        register_setting(
+            'ry_annotorious_options_group',
+            self::OPTION_ANNO_CONFIG, // The new option key
+            array(
+                'type'              => 'string', // Storing as a JSON string
+                'sanitize_callback' => array( $this, 'sanitize_anno_config_json_string' ),
+                'default'           => $this->get_default_anno_options_json(), // Default: "{}"
+            )
+        );
+
         // Register the settings section
         add_settings_section(
             'ry_annotorious_settings_section_main',
@@ -160,6 +186,16 @@ private function get_default_osd_options_json() {
             'ry-annotorious-settings',                  // Page slug
             'ry_annotorious_settings_section_main'      // Section ID
         );
+
+        // NEW: Add settings field for Annotorious configurations
+        add_settings_field(
+            'ry_annotorious_anno_config_field',         // ID
+            'Annotorious Configuration',                // Title
+            array( $this, 'ry_annotorious_anno_config_callback' ), // Callback to render
+            'ry-annotorious-settings',                  // Page slug
+            'ry_annotorious_settings_section_main'      // Section ID
+        );
+        
     }
 
     public function sanitize_display_mode_option( $input ) {
@@ -362,6 +398,77 @@ private function get_default_osd_options_json() {
         <?php
     }
 
+    // NEW: Sanitize callback for the Annotorious config JSON string
+    public function sanitize_anno_config_json_string( $input_json_string ) {
+        $trimmed_input = trim( $input_json_string );
+
+        // If input is empty, effectively use the default (empty JSON object)
+        if ( empty( $trimmed_input ) ) {
+            return $this->get_default_anno_options_json(); // Returns "{}"
+        }
+
+        $decoded_input = json_decode( $trimmed_input, true ); // true for associative array
+
+        // Check if JSON is valid
+        if ( json_last_error() !== JSON_ERROR_NONE ) {
+            add_settings_error(
+                self::OPTION_ANNO_CONFIG,
+                'anno_config_invalid_json',
+                __( 'The Annotorious configuration was not valid JSON. Please check the syntax. Reverted to previous or default settings.', 'ry-annotorious' ),
+                'error'
+            );
+            // Return the existing valid option or the default
+            return get_option(self::OPTION_ANNO_CONFIG, $this->get_default_anno_options_json());
+        }
+
+        // $decoded_input is now a valid PHP array.
+        // You can add more specific validation for known Annotorious options here if desired.
+        // For instance, ensuring 'readOnly' is a boolean, 'allowEmpty' is a boolean, etc.
+        // For now, any valid JSON that results in an array (or object structure) is accepted.
+        // Example of more specific sanitization (optional, can be expanded):
+        // if (isset($decoded_input['readOnly'])) {
+        //     $decoded_input['readOnly'] = filter_var($decoded_input['readOnly'], FILTER_VALIDATE_BOOLEAN);
+        // }
+        // if (isset($decoded_input['allowEmpty'])) {
+        //     $decoded_input['allowEmpty'] = filter_var($decoded_input['allowEmpty'], FILTER_VALIDATE_BOOLEAN);
+        // }
+
+        // Re-encode the (potentially sanitized) array to a pretty JSON string for storage.
+        // Ensure it's an object if the decoded input was an empty array from "[]"
+        if (is_array($decoded_input) && empty($decoded_input) && $trimmed_input === '[]') {
+            return $this->get_default_anno_options_json(); // Convert empty array string "[]" to "{}"
+        }
+
+        return json_encode( $decoded_input, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+    }
+
+    // Callback function to render the textarea for Annotorious configurations
+    public function ry_annotorious_anno_config_callback() {
+        $anno_config_json = get_option( self::OPTION_ANNO_CONFIG, $this->get_default_anno_options_json() );
+        // Ensure it's a string for the textarea and valid JSON, otherwise use default
+        if ( !is_string( $anno_config_json ) || json_decode( $anno_config_json ) === null ) {
+            $anno_config_json = $this->get_default_anno_options_json();
+        }
+        ?>
+        <textarea name="<?php echo esc_attr( self::OPTION_ANNO_CONFIG ); ?>"
+                id="<?php echo esc_attr( self::OPTION_ANNO_CONFIG ); ?>"
+                rows="10"
+                cols="70"
+                class="large-text code"><?php echo esc_textarea( $anno_config_json ); ?></textarea>
+        <p class="description">
+            <?php _e( 'Enter your Annotorious configuration options as a valid JSON object. If left as <code>{}</code> (empty object), default Annotorious behavior will apply.', 'ry-annotorious' ); ?>
+            <br>
+            <?php printf(
+                /* translators: %1$s: Link to Annotorious documentation, %2$s: Example JSON */
+                wp_kses_post( __( 'Refer to the <a href="%1$s" target="_blank" rel="noopener noreferrer">Annotorious documentation</a> for available options. Example: <code>%2$s</code>', 'ry-annotorious' ) ),
+                'https://annotorious.github.io/annotorious/getting-started/configuring/',
+                esc_html('{"allowEmpty": true, "readOnly": false, "widgets": ["COMMENT"]}')
+            ); ?>
+        </p>
+        <?php
+    }
+
+
     /*************************************
     * --- Script & Style Loading Functions ---
     *************************************/
@@ -449,6 +556,29 @@ private function get_default_osd_options_json() {
             'images'        => $image_sources, // Assuming $image_sources is defined
             'currentPostId' => $current_post_id, // Assuming $current_post_id is defined
             'osdOptions'    => $osd_options_from_db, // Add the OSD options here
+        ];
+        wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousViewerConfig', $viewer_config );
+
+
+        // NEW: Get Annotorious configurations from settings
+        $anno_config_json_string = get_option( self::OPTION_ANNO_CONFIG, $this->get_default_anno_options_json() );
+        $anno_options_from_db = json_decode( $anno_config_json_string, true ); // true for associative array
+
+        // Annotorious expects an object. If decoding fails or results in null/empty, use an empty object.
+        if ( !is_array( $anno_options_from_db ) || json_last_error() !== JSON_ERROR_NONE ) {
+            $anno_options_from_db = (object) $this->get_default_anno_options_array(); // Ensure it's an object
+        } else {
+            // If it's an empty array from JSON "[]", convert to empty object for Annotorious
+            $anno_options_from_db = (object) $anno_options_from_db;
+        }
+
+
+        $viewer_config = [ // Your existing $viewer_config array
+            'id'            => $viewer_id,
+            'images'        => $image_sources,
+            'currentPostId' => $current_post_id,
+            'osdOptions'    => $osd_options_from_db,
+            'annoOptions'   => $anno_options_from_db, // NEW: Add Annotorious options
         ];
         wp_localize_script( 'ry-annotorious-public-js', 'AnnotoriousViewerConfig', $viewer_config );
 
